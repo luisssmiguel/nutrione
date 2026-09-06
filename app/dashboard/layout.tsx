@@ -41,11 +41,31 @@ export default function DashboardLayout({
   }
 
   return (
-    // AJUSTE 1: Trocamos min-h-screen por h-screen e adicionamos overflow-hidden
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    // Mudamos para flex-col no mobile e flex-row no desktop
+    <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gray-50">
       
-      <aside className="w-64 bg-emerald-800 text-white p-6 hidden md:flex flex-col shadow-xl z-10">
-        
+      {/* =======================================
+          CABEÇALHO MOBILE (Só aparece no celular)
+      ======================================= */}
+      <div className="md:hidden bg-emerald-800 text-white p-4 flex justify-between items-center shadow-md z-20 shrink-0">
+        <div className="flex items-center bg-white/10 px-3 py-1.5 rounded-lg">
+          <Image 
+            src="/logo.png" 
+            alt="Logo NutriOne" 
+            width={90} 
+            height={25} 
+            className="object-contain"
+          />
+        </div>
+        <button onClick={handleLogout} className="text-xs font-bold text-emerald-200 hover:text-white px-2 py-1">
+          Sair
+        </button>
+      </div>
+
+      {/* =======================================
+          BARRA LATERAL DESKTOP (Só aparece no PC)
+      ======================================= */}
+      <aside className="w-64 bg-emerald-800 text-white p-6 hidden md:flex flex-col shadow-xl z-10 shrink-0">
         <div className="mb-10 flex justify-center bg-white/10 p-4 rounded-xl">
            <Image 
             src="/logo.png" 
@@ -59,56 +79,55 @@ export default function DashboardLayout({
         </div>
 
         <nav className="space-y-3 flex-1">
-          <a 
-            href="/dashboard" 
-            className={`block py-3 px-4 rounded-xl font-medium transition-colors ${
-              pathname === '/dashboard' ? 'bg-emerald-700 shadow-sm' : 'hover:bg-emerald-700/50'
-            }`}
-          >
+          <a href="/dashboard" className={`block py-3 px-4 rounded-xl font-medium transition-colors ${pathname === '/dashboard' ? 'bg-emerald-700 shadow-sm' : 'hover:bg-emerald-700/50'}`}>
             Visão Geral
           </a>
-          
-          <a 
-            href="/dashboard/pacientes" 
-            className={`block py-3 px-4 rounded-xl font-medium transition-colors ${
-              pathname === '/dashboard/pacientes' ? 'bg-emerald-700 shadow-sm' : 'hover:bg-emerald-700/50'
-            }`}
-          >
+          <a href="/dashboard/pacientes" className={`block py-3 px-4 rounded-xl font-medium transition-colors ${pathname.includes('/pacientes') ? 'bg-emerald-700 shadow-sm' : 'hover:bg-emerald-700/50'}`}>
             Meus Pacientes
           </a>
-          
-          <a 
-            href="/dashboard/planos" 
-            className={`block py-3 px-4 rounded-xl font-medium transition-colors ${
-              pathname.includes('/dashboard/planos') ? 'bg-emerald-700 shadow-sm' : 'hover:bg-emerald-700/50'
-            }`}
-          >
+          <a href="/dashboard/planos" className={`block py-3 px-4 rounded-xl font-medium transition-colors ${pathname.includes('/planos') ? 'bg-emerald-700 shadow-sm' : 'hover:bg-emerald-700/50'}`}>
             Planos Alimentares
           </a>
-
-          <a 
-            href="/dashboard/agenda" 
-            className={`block py-3 px-4 rounded-xl font-medium transition-colors ${
-              pathname.includes('/dashboard/agenda') ? 'bg-emerald-700 shadow-sm' : 'hover:bg-emerald-700/50'
-            }`}
-          >
+          <a href="/dashboard/agenda" className={`block py-3 px-4 rounded-xl font-medium transition-colors ${pathname.includes('/agenda') ? 'bg-emerald-700 shadow-sm' : 'hover:bg-emerald-700/50'}`}>
             Agenda
           </a>
         </nav>
 
-        {/* O mt-auto aqui garante que o botão fique sempre no fundo! */}
-        <button 
-          onClick={handleLogout}
-          className="mt-auto py-3 px-4 text-emerald-200 hover:text-white hover:bg-emerald-700/50 rounded-xl font-medium transition-colors text-left"
-        >
+        <button onClick={handleLogout} className="mt-auto py-3 px-4 text-emerald-200 hover:text-white hover:bg-emerald-700/50 rounded-xl font-medium transition-colors text-left">
           Sair do sistema
         </button>
       </aside>
 
-      {/* AJUSTE 2: Adicionamos o overflow-y-auto aqui no main */}
-      <main className="flex-1 overflow-y-auto">
+      {/* =======================================
+          CONTEÚDO PRINCIPAL (Telas do sistema)
+      ======================================= */}
+      {/* Adicionamos pb-20 no mobile para o conteúdo não ficar escondido atrás do menu inferior */}
+      <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
         {children}
       </main>
+
+      {/* =======================================
+          MENU INFERIOR MOBILE (Só aparece no celular)
+      ======================================= */}
+      <nav className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-center h-16 z-50 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <a href="/dashboard" className={`flex flex-col items-center justify-center w-full h-full ${pathname === '/dashboard' ? 'text-emerald-700' : 'text-gray-400 hover:text-gray-600'}`}>
+          <span className="text-xl mb-0.5">📊</span>
+          <span className="text-[10px] font-bold">Início</span>
+        </a>
+        <a href="/dashboard/pacientes" className={`flex flex-col items-center justify-center w-full h-full ${pathname.includes('/pacientes') ? 'text-emerald-700' : 'text-gray-400 hover:text-gray-600'}`}>
+          <span className="text-xl mb-0.5">👥</span>
+          <span className="text-[10px] font-bold">Pacientes</span>
+        </a>
+        <a href="/dashboard/planos" className={`flex flex-col items-center justify-center w-full h-full ${pathname.includes('/planos') ? 'text-emerald-700' : 'text-gray-400 hover:text-gray-600'}`}>
+          <span className="text-xl mb-0.5">🍎</span>
+          <span className="text-[10px] font-bold">Planos</span>
+        </a>
+        <a href="/dashboard/agenda" className={`flex flex-col items-center justify-center w-full h-full ${pathname.includes('/agenda') ? 'text-emerald-700' : 'text-gray-400 hover:text-gray-600'}`}>
+          <span className="text-xl mb-0.5">📅</span>
+          <span className="text-[10px] font-bold">Agenda</span>
+        </a>
+      </nav>
+
     </div>
   );
 }
