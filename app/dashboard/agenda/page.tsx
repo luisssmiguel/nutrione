@@ -15,6 +15,13 @@ export default function AgendaPage() {
   // NOVO: Estado para controlar qual consulta está aberta no Modal/Pop-up
   const [consultaSelecionada, setConsultaSelecionada] = useState<any | null>(null);
 
+  // NOVO: Estados para o WhatsApp
+  const [modalWhatsAppAberto, setModalWhatsAppAberto] = useState(false);
+  const [mensagemWhatsApp, setMensagemWhatsApp] = useState("");
+  const [pacienteWhatsApp, setPacienteWhatsApp] = useState("");
+  const [telefoneWhatsApp, setTelefoneWhatsApp] = useState("");
+  const [copiado, setCopiado] = useState(false);
+
   // ==========================================
   // LÓGICA DO CALENDÁRIO
   // ==========================================
@@ -153,6 +160,37 @@ export default function AgendaPage() {
     }
   };
 
+  // MÉTODOS DO WHATSAPP
+  const abrirModalWhatsApp = (agenda: any) => {
+    const nome = agenda.pacientes?.perfis?.nome_completo || "Paciente";
+    const [ano, mes, dia] = agenda.data_consulta.split("-");
+    const nomeMes = meses[parseInt(mes, 10) - 1];
+    const dataFmt = `${parseInt(dia, 10)} de ${nomeMes} de ${ano}`;
+    const horaFmt = agenda.hora_consulta.substring(0, 5);
+
+    const texto = `Olá, *${nome}*! Tudo bem? 🌿\n\nPassando para confirmar sua consulta nutricional:\n📅 *Data:* ${dataFmt}\n⏰ *Horário:* ${horaFmt}\n📋 *Tipo:* ${agenda.tipo_consulta}\n\n📍 _NutriOne Consultório de Nutrição_\n\nPor favor, confirme se você poderá comparecer respondendo a esta mensagem. Caso precise remarcar, nos avise com antecedência. Até breve! ✨`;
+
+    setMensagemWhatsApp(texto);
+    setPacienteWhatsApp(nome);
+    setTelefoneWhatsApp("");
+    setCopiado(false);
+    setModalWhatsAppAberto(true);
+  };
+
+  const enviarWhatsApp = () => {
+    const cleanPhone = telefoneWhatsApp.replace(/\D/g, "");
+    const url = cleanPhone
+      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(mensagemWhatsApp)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagemWhatsApp)}`;
+    window.open(url, "_blank");
+  };
+
+  const copiarMensagem = () => {
+    navigator.clipboard.writeText(mensagemWhatsApp);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2500);
+  };
+
   if (carregandoDados) {
     return (
       <div className="p-12 text-emerald-700 font-medium text-center mt-20">
@@ -162,18 +200,18 @@ export default function AgendaPage() {
   }
 
   return (
-    <div className="p-8 md:p-12 max-w-7xl mx-auto">
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold text-gray-800">Agenda do Consultório</h1>
-        <p className="text-gray-500 mt-1">Gerencie seus horários e acompanhe os pacientes do dia.</p>
+    <div className="p-4 sm:p-6 md:p-12 max-w-7xl mx-auto">
+      <div className="mb-6 sm:mb-10">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Agenda do Consultório</h1>
+        <p className="text-gray-500 mt-1 text-sm sm:text-base">Gerencie seus horários e acompanhe os pacientes do dia.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
         
-        {/* COLUNA ESQUERDA: Formulário de Agendamento */}
-        <div className="lg:col-span-1">
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 sticky top-8">
-            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+        {/* COLUNA: Formulário de Agendamento (no mobile fica abaixo da lista de hoje) */}
+        <div className="lg:col-span-1 order-2 lg:order-1">
+          <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-gray-100 sticky top-8">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
               <span>📅</span> Novo Agendamento
             </h2>
             
@@ -244,12 +282,12 @@ export default function AgendaPage() {
         </div>
 
         {/* COLUNA DIREITA: Calendário e Lista */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 order-1 lg:order-2">
           
           {/* O Calendário */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-800 capitalize">{meses[mesAtual]} {anoAtual}</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-800 capitalize">{meses[mesAtual]} {anoAtual}</h2>
               <div className="flex gap-2">
                 <button onClick={mesAnterior} className="p-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors font-bold text-gray-600">&lt;</button>
                 <button onClick={mesProximo} className="p-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors font-bold text-gray-600">&gt;</button>
@@ -258,13 +296,13 @@ export default function AgendaPage() {
             
             <div className="grid grid-cols-7 gap-1 text-center mb-2">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
-                <div key={d} className="text-xs font-bold text-gray-400">{d}</div>
+                <div key={d} className="text-[11px] sm:text-xs font-bold text-gray-400">{d}</div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {dias.map((dia, index) => {
-                if (!dia) return <div key={`empty-${index}`} className="p-2"></div>;
+                if (!dia) return <div key={`empty-${index}`} className="p-1 sm:p-2"></div>;
 
                 const dataDesteQuadrado = `${anoAtual}-${String(mesAtual + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
                 const temConsulta = agendamentos.some((a) => a.data_consulta === dataDesteQuadrado);
@@ -280,7 +318,7 @@ export default function AgendaPage() {
                       setDataSelecionada(new Date(anoAtual, mesAtual, dia));
                     }}
                     className={`
-                      relative p-3 rounded-xl text-sm font-semibold transition-all flex flex-col items-center justify-center
+                      relative p-2 sm:p-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-all flex flex-col items-center justify-center min-h-[38px] sm:min-h-[44px]
                       ${isSelecionado ? 'bg-emerald-600 text-white shadow-md' : 'hover:bg-gray-50 text-gray-700 bg-white border border-transparent hover:border-gray-200'}
                       ${isHoje && !isSelecionado ? 'border-emerald-200 text-emerald-700 bg-emerald-50/50' : ''}
                     `}
@@ -337,6 +375,16 @@ export default function AgendaPage() {
 
                     {/* Botões de Ação */}
                     <div className="flex items-center gap-2 justify-end border-t border-gray-200 sm:border-t-0 pt-3 sm:pt-0">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          abrirModalWhatsApp(agenda);
+                        }}
+                        className="text-emerald-700 hover:text-emerald-800 font-semibold text-xs bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                        title="Enviar lembrete via WhatsApp"
+                      >
+                        <span>💬</span> WhatsApp
+                      </button>
                       <button 
                         onClick={(e) => {
                           e.stopPropagation(); // Evita abrir o modal ao clicar no botão direto
@@ -431,19 +479,121 @@ export default function AgendaPage() {
             </div>
 
             {/* Rodapé e Ações */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
               <button 
-                onClick={() => setConsultaSelecionada(null)}
-                className="px-5 py-2.5 rounded-xl font-semibold text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                onClick={() => abrirModalWhatsApp(consultaSelecionada)}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
               >
-                Fechar
+                <span>💬</span> Enviar Lembrete no WhatsApp
               </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button 
+                  onClick={() => setConsultaSelecionada(null)}
+                  className="px-4 py-2.5 rounded-xl font-semibold text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  Fechar
+                </button>
+                <button 
+                  onClick={() => window.location.href = `/dashboard/pacientes/${consultaSelecionada.paciente_id}`}
+                  className="bg-gray-800 hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-1.5"
+                >
+                  Prontuário ➔
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* MODAL DE ENVIO RÁPIDO DO WHATSAPP          */}
+      {/* ========================================== */}
+      {modalWhatsAppAberto && (
+        <div 
+          onClick={() => setModalWhatsAppAberto(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-lg rounded-3xl p-6 md:p-8 shadow-2xl border border-gray-100 space-y-6"
+          >
+            {/* Topo do Modal */}
+            <div className="flex justify-between items-start border-b border-gray-100 pb-4">
+              <div>
+                <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-lg">💬</span> Lembrete no WhatsApp
+                </span>
+                <h3 className="text-2xl font-bold text-gray-800 mt-1">
+                  {pacienteWhatsApp}
+                </h3>
+              </div>
               <button 
-                onClick={() => window.location.href = `/dashboard/pacientes/${consultaSelecionada.paciente_id}`}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2"
+                onClick={() => setModalWhatsAppAberto(false)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors text-lg"
               >
-                Abrir Prontuário ➔
+                ✕
               </button>
+            </div>
+
+            {/* Campo de Telefone */}
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">
+                Telefone / WhatsApp com DDD (opcional)
+              </label>
+              <input
+                type="text"
+                value={telefoneWhatsApp}
+                onChange={(e) => setTelefoneWhatsApp(e.target.value)}
+                placeholder="Ex: 11999998888 (deixe em branco se preferir escolher o contato no WhatsApp)"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-300 focus:border-emerald-500 outline-none text-sm text-gray-800"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Se deixar em branco, o WhatsApp abrirá para você escolher o paciente na sua lista de conversas.
+              </p>
+            </div>
+
+            {/* Mensagem Formatada */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="text-xs font-bold text-gray-700">Prévia do Lembrete</label>
+                <span className="text-[11px] text-gray-400">Pode editar o texto abaixo se quiser</span>
+              </div>
+              <textarea
+                value={mensagemWhatsApp}
+                onChange={(e) => setMensagemWhatsApp(e.target.value)}
+                rows={7}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-300 focus:border-emerald-500 outline-none text-xs text-gray-700 font-mono leading-relaxed resize-none bg-gray-50"
+              />
+            </div>
+
+            {/* Botões de Ação */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                onClick={copiarMensagem}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors text-sm flex items-center justify-center gap-1.5"
+              >
+                {copiado ? "✅ Copiado!" : "📋 Copiar Texto"}
+              </button>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setModalWhatsAppAberto(false)}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-gray-500 font-semibold hover:bg-gray-100 transition-colors text-sm"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="button"
+                  onClick={enviarWhatsApp}
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                >
+                  <span>💬</span> Abrir no WhatsApp
+                </button>
+              </div>
             </div>
 
           </div>

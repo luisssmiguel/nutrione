@@ -101,8 +101,8 @@ export default function DashboardLayout({
       {/* =======================================
           CONTEÚDO PRINCIPAL (Telas do sistema)
       ======================================= */}
-      {/* Adicionamos pb-20 no mobile para o conteúdo não ficar escondido atrás do menu inferior */}
-      <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+      {/* Adicionamos pb-24 no mobile para o conteúdo não ficar escondido atrás do menu inferior */}
+      <main className="flex-1 overflow-y-auto pb-24 md:pb-0">
         {children}
       </main>
 

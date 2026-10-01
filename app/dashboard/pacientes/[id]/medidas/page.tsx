@@ -183,9 +183,9 @@ export default function MedidasPacientePage() {
   };
 
   return (
-    <div className="p-8 md:p-12 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-12 max-w-6xl mx-auto">
       
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-10">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => router.push(`/dashboard/pacientes/${id}`)} 
@@ -194,8 +194,8 @@ export default function MedidasPacientePage() {
             ← Voltar
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">Avaliação Antropométrica</h1>
-            <p className="text-emerald-600 font-medium mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Avaliação Antropométrica</h1>
+            <p className="text-emerald-600 font-medium mt-1 text-sm sm:text-base">
               Paciente: <span className="text-gray-600">{paciente?.perfis?.nome_completo || "Carregando..."}</span>
             </p>
           </div>
@@ -206,7 +206,7 @@ export default function MedidasPacientePage() {
             if (mostrarFormulario) limparFormulario();
             setMostrarFormulario(!mostrarFormulario);
           }}
-          className={`px-6 py-3 rounded-xl font-semibold shadow-sm transition-colors ${mostrarFormulario ? "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
+          className={`w-full sm:w-auto px-6 py-3 rounded-xl font-semibold shadow-sm transition-colors text-center ${mostrarFormulario ? "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
         >
           {mostrarFormulario ? "Cancelar" : "+ Nova Avaliação"}
         </button>

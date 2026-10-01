@@ -22,6 +22,12 @@ export default function MontagemPlanoPage() {
   // NOVO: Estado para saber se estamos editando alguma refeição
   const [refeicaoEmEdicao, setRefeicaoEmEdicao] = useState<string | null>(null);
 
+  // NOVO: Estados para o WhatsApp
+  const [modalWhatsAppAberto, setModalWhatsAppAberto] = useState(false);
+  const [mensagemWhatsApp, setMensagemWhatsApp] = useState("");
+  const [telefoneWhatsApp, setTelefoneWhatsApp] = useState("");
+  const [copiado, setCopiado] = useState(false);
+
   const componentePDFRef = useRef<HTMLDivElement>(null);
 
   const handleExportarPDF = useReactToPrint({
@@ -64,6 +70,43 @@ export default function MontagemPlanoPage() {
     setNomeRefeicao("");
     setHorario("");
     setDescricao("");
+  };
+
+  // MÉTODOS DO WHATSAPP
+  const abrirModalWhatsApp = () => {
+    const nomePaciente = plano?.pacientes?.perfis?.nome_completo || "Paciente";
+
+    let textoRefeicoes = "";
+    if (refeicoes && refeicoes.length > 0) {
+      textoRefeicoes = refeicoes
+        .map((r) => {
+          const horarioFmt = r.horario ? ` (${r.horario.substring(0, 5)})` : "";
+          return `🍴 *${r.nome}*${horarioFmt}\n${r.descricao}`;
+        })
+        .join("\n\n");
+    } else {
+      textoRefeicoes = "Consulte seu plano alimentar detalhado em anexo.";
+    }
+
+    const texto = `Olá, *${nomePaciente}*! Tudo bem? 🥗\n\nSeu *Plano Alimentar personalizado (${plano?.titulo || "NutriOne"})* já está pronto!\n\n📋 *Resumo da sua rotina:*\n\n${textoRefeicoes}\n\nLembre-se: constância e hidratação são a chave para alcançar seus objetivos! Se tiver qualquer dúvida sobre alimentos ou substituições, estou à disposição. ✨\n\n_NutriOne Consultoria Nutricional_`;
+
+    setMensagemWhatsApp(texto);
+    setCopiado(false);
+    setModalWhatsAppAberto(true);
+  };
+
+  const enviarWhatsApp = () => {
+    const cleanPhone = telefoneWhatsApp.replace(/\D/g, "");
+    const url = cleanPhone
+      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(mensagemWhatsApp)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagemWhatsApp)}`;
+    window.open(url, "_blank");
+  };
+
+  const copiarMensagem = () => {
+    navigator.clipboard.writeText(mensagemWhatsApp);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2500);
   };
 
   // ATUALIZADO: Agora ele sabe se deve Criar (Insert) ou Atualizar (Update)
@@ -120,7 +163,7 @@ export default function MontagemPlanoPage() {
   if (!plano) return <div className="p-12 text-red-500 font-medium">Plano não encontrado.</div>;
 
   return (
-    <div className="p-8 md:p-12">
+    <div className="p-4 sm:p-6 md:p-12 max-w-7xl mx-auto">
       
       {/* Cabeçalho e Exportar PDF */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -129,19 +172,27 @@ export default function MontagemPlanoPage() {
             ← Voltar
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">{plano.titulo}</h1>
-            <p className="text-emerald-600 font-medium mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">{plano.titulo}</h1>
+            <p className="text-emerald-600 font-medium mt-1 text-sm sm:text-base">
               Paciente: <span className="text-gray-600">{plano.pacientes?.perfis?.nome_completo}</span>
             </p>
           </div>
         </div>
 
-        <button 
-          onClick={handleExportarPDF}
-          className="bg-gray-800 hover:bg-black text-white px-6 py-3 rounded-xl font-bold shadow-md transition-transform transform hover:-translate-y-0.5 flex items-center gap-2"
-        >
-          📄 Exportar PDF
-        </button>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+          <button 
+            onClick={abrirModalWhatsApp}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-md transition-transform transform hover:-translate-y-0.5 flex items-center justify-center gap-2 text-sm"
+          >
+            <span>💬</span> Enviar no WhatsApp
+          </button>
+          <button 
+            onClick={handleExportarPDF}
+            className="bg-gray-800 hover:bg-black text-white px-5 py-3 rounded-xl font-bold shadow-md transition-transform transform hover:-translate-y-0.5 flex items-center justify-center gap-2 text-sm"
+          >
+            📄 Exportar PDF
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -250,6 +301,97 @@ export default function MontagemPlanoPage() {
         </div>
 
       </div>
+
+      {/* MODAL DO WHATSAPP */}
+      {modalWhatsAppAberto && (
+        <div
+          onClick={() => setModalWhatsAppAberto(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-xl rounded-3xl p-6 md:p-8 shadow-2xl border border-gray-100 space-y-6"
+          >
+            {/* Topo do Modal */}
+            <div className="flex justify-between items-start border-b border-gray-100 pb-4">
+              <div>
+                <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-lg">💬</span> WhatsApp Web & Celular
+                </span>
+                <h3 className="text-2xl font-bold text-gray-800 mt-1">
+                  Enviar Plano para {plano?.pacientes?.perfis?.nome_completo}
+                </h3>
+              </div>
+              <button
+                onClick={() => setModalWhatsAppAberto(false)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Campo de Telefone */}
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">
+                Telefone / WhatsApp com DDD (opcional)
+              </label>
+              <input
+                type="text"
+                value={telefoneWhatsApp}
+                onChange={(e) => setTelefoneWhatsApp(e.target.value)}
+                placeholder="Ex: 11999998888 (deixe em branco se preferir escolher o contato no WhatsApp)"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-300 focus:border-emerald-500 outline-none text-sm text-gray-800"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Se deixar em branco, o WhatsApp abrirá para você escolher o paciente na sua lista de conversas.
+              </p>
+            </div>
+
+            {/* Mensagem Formatada */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="text-xs font-bold text-gray-700">Prévia da Mensagem (Personalizável)</label>
+                <span className="text-[11px] text-gray-400">Pode editar o texto abaixo se quiser</span>
+              </div>
+              <textarea
+                value={mensagemWhatsApp}
+                onChange={(e) => setMensagemWhatsApp(e.target.value)}
+                rows={9}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-300 focus:border-emerald-500 outline-none text-xs text-gray-700 font-mono leading-relaxed resize-none bg-gray-50"
+              />
+            </div>
+
+            {/* Botões de Ação */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                onClick={copiarMensagem}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold hover:bg-gray-50 transition-colors text-sm flex items-center justify-center gap-1.5"
+              >
+                {copiado ? "✅ Copiado!" : "📋 Copiar Texto"}
+              </button>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setModalWhatsAppAberto(false)}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-gray-500 font-semibold hover:bg-gray-100 transition-colors text-sm"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="button"
+                  onClick={enviarWhatsApp}
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                >
+                  <span>💬</span> Abrir no WhatsApp
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

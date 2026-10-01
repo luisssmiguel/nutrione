@@ -89,10 +89,10 @@ const formatarData = (dataSql: string) => {
   }
 
   return (
-    <div className="p-8 md:p-12 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-12 max-w-7xl mx-auto">
       
       {/* CABEÇALHO DO DASHBOARD */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 sm:mb-10">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">Visão Geral</h1>
           <p className="text-gray-500 mt-1">Acompanhe os indicadores do seu consultório.</p>

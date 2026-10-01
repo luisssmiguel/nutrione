@@ -112,11 +112,11 @@ function PlanosConteudo() {
   });
 
   return (
-    <div className="p-8 md:p-12">
-      <div className="flex justify-between items-center mb-10">
+    <div className="p-4 sm:p-6 md:p-12 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-10">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Planos Alimentares</h1>
-          <p className="text-gray-500 mt-1">Crie e gerencie as dietas dos seus pacientes.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Planos Alimentares</h1>
+          <p className="text-gray-500 mt-1 text-sm sm:text-base">Crie e gerencie as dietas dos seus pacientes.</p>
         </div>
         
         <button 
@@ -124,7 +124,7 @@ function PlanosConteudo() {
             setMostrarFormulario(!mostrarFormulario);
             if (mostrarFormulario) router.replace('/dashboard/planos', { scroll: false });
           }}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold shadow-sm transition-colors"
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold shadow-sm transition-colors text-center"
         >
           {mostrarFormulario ? "Voltar para Lista" : "+ Novo Plano"}
         </button>
@@ -188,15 +188,15 @@ function PlanosConteudo() {
             />
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <table className="w-full text-left border-collapse">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[550px]">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="p-4 font-semibold text-gray-600">Título do Plano</th>
-                  <th className="p-4 font-semibold text-gray-600">Paciente</th>
-                  <th className="p-4 font-semibold text-gray-600 text-center">Status</th>
-                  <th className="p-4 font-semibold text-gray-600 hidden md:table-cell">Criado em</th>
-                  <th className="p-4 font-semibold text-gray-600 text-center">Ações</th>
+                <tr className="bg-gray-50 border-b border-gray-100 text-xs sm:text-sm">
+                  <th className="p-3.5 sm:p-4 font-semibold text-gray-600">Título do Plano</th>
+                  <th className="p-3.5 sm:p-4 font-semibold text-gray-600">Paciente</th>
+                  <th className="p-3.5 sm:p-4 font-semibold text-gray-600 text-center">Status</th>
+                  <th className="p-3.5 sm:p-4 font-semibold text-gray-600 hidden md:table-cell">Criado em</th>
+                  <th className="p-3.5 sm:p-4 font-semibold text-gray-600 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -213,31 +213,33 @@ function PlanosConteudo() {
                   // NOVO: Substituímos 'planos.map' por 'planosFiltrados.map'
                   planosFiltrados.map((plano) => (
                     <tr key={plano.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                      <td className="p-4 font-bold text-gray-800">{plano.titulo}</td>
-                      <td className="p-4 font-medium text-gray-700">{plano.pacientes?.perfis?.nome_completo}</td>
-                      <td className="p-4 text-center">
+                      <td className="p-3.5 sm:p-4 font-bold text-gray-800 text-sm sm:text-base">{plano.titulo}</td>
+                      <td className="p-3.5 sm:p-4 font-medium text-gray-700 text-sm">{plano.pacientes?.perfis?.nome_completo}</td>
+                      <td className="p-3.5 sm:p-4 text-center">
                         {plano.ativo ? (
                           <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">Ativo</span>
                         ) : (
                           <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">Inativo</span>
                         )}
                       </td>
-                      <td className="p-4 hidden md:table-cell text-gray-600">
+                      <td className="p-3.5 sm:p-4 hidden md:table-cell text-gray-600 text-sm">
                         {new Date(plano.criado_em).toLocaleDateString('pt-BR')}
                       </td>
-                      <td className="p-4 text-center space-x-4">
-                        <button 
-                          onClick={() => router.push(`/dashboard/planos/${plano.id}`)}
-                          className="text-emerald-600 hover:text-emerald-800 font-medium text-sm transition-colors"
-                        >
-                          Montar Dieta
-                        </button>
-                        <button 
-                          onClick={() => handleExcluirPlano(plano.id)}
-                          className="text-red-500 hover:text-red-700 font-medium text-sm transition-colors"
-                        >
-                          Excluir
-                        </button>
+                      <td className="p-3.5 sm:p-4 text-center">
+                        <div className="flex items-center justify-center gap-3">
+                          <button 
+                            onClick={() => router.push(`/dashboard/planos/${plano.id}`)}
+                            className="text-emerald-600 hover:text-emerald-800 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap bg-emerald-50 px-2.5 py-1 rounded-lg"
+                          >
+                            Montar Dieta
+                          </button>
+                          <button 
+                            onClick={() => handleExcluirPlano(plano.id)}
+                            className="text-red-500 hover:text-red-700 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap px-2 py-1"
+                          >
+                            Excluir
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

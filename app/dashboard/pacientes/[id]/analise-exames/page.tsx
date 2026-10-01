@@ -221,14 +221,14 @@ export default function AnaliseExamesPage() {
   };
 
   return (
-    <div className="p-8 md:p-12 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-12 max-w-6xl mx-auto">
       
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-10">
         <div className="flex items-center gap-4">
           <button onClick={() => router.push(`/dashboard/pacientes/${id}`)} className="text-gray-500 hover:text-emerald-700 bg-white p-2 rounded-lg shadow-sm border border-gray-200 transition-colors">← Voltar</button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">Análise de Exames</h1>
-            <p className="text-emerald-600 font-medium mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Análise de Exames</h1>
+            <p className="text-emerald-600 font-medium mt-1 text-sm sm:text-base">
               Paciente: <span className="text-gray-600">{paciente?.perfis?.nome_completo || "Carregando..."}</span>
             </p>
           </div>
@@ -238,7 +238,7 @@ export default function AnaliseExamesPage() {
             if (mostrarFormulario) limparFormulario();
             setMostrarFormulario(!mostrarFormulario);
           }} 
-          className={`px-6 py-3 rounded-xl font-semibold shadow-sm transition-colors ${mostrarFormulario ? "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
+          className={`w-full sm:w-auto px-6 py-3 rounded-xl font-semibold shadow-sm transition-colors text-center ${mostrarFormulario ? "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
         >
           {mostrarFormulario ? "Cancelar Lançamento" : "+ Lançar Novo Exame"}
         </button>
@@ -246,7 +246,7 @@ export default function AnaliseExamesPage() {
 
       {mostrarFormulario ? (
         
-        <div className={`bg-white p-8 rounded-2xl shadow-sm border mb-8 animate-in fade-in slide-in-from-top-4 transition-colors ${exameEmEdicao ? "border-amber-200 bg-amber-50/30" : "border-gray-100"}`}>
+        <div className={`bg-white p-5 sm:p-8 rounded-2xl shadow-sm border mb-8 animate-in fade-in slide-in-from-top-4 transition-colors ${exameEmEdicao ? "border-amber-200 bg-amber-50/30" : "border-gray-100"}`}>
           <div className="flex justify-between items-center border-b border-gray-100 pb-4 mb-6">
             <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
               {exameEmEdicao ? "✏️ Editando Exame" : "Digitar Valores do Exame"}

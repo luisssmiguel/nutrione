@@ -79,12 +79,12 @@ export default function LoginPage() {
       </div>
 
 {/* Lado Direito - Formulário de Autenticação */}
-<div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
-  <div className="w-full max-w-md bg-white px-10 pb-10 pt-4 rounded-3xl shadow-xl border border-gray-100">
+<div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 bg-gray-50 min-h-screen lg:min-h-0">
+  <div className="w-full max-w-md bg-white px-5 py-7 sm:px-10 sm:pb-10 sm:pt-4 rounded-3xl shadow-xl border border-gray-100">
           
 {/* Logo Centralizada */}
           <div className="flex justify-center mb-0">
-            <img src="/imagem-V1.png" alt="NutriOne" className="w-64 h-auto object-contain" />
+            <img src="/imagem-V1.png" alt="NutriOne" className="w-48 sm:w-64 h-auto object-contain" />
           </div>
 
           {/* Títulos Dinâmicos */}

@@ -30,6 +30,9 @@ export default function ProntuarioPage() {
   // NOVO: Estado para guardar o histórico de peso para o gráfico
   const [historicoPeso, setHistoricoPeso] = useState<any[]>([]);
 
+  // NOVO: Estado para guardar a última anamnese nutricional
+  const [ultimaAnamnese, setUltimaAnamnese] = useState<any>(null);
+
   const carregarDados = async () => {
     // Busca Paciente
     const { data: dataPaciente } = await supabase.from("pacientes").select(`id, peso_kg, altura_cm, data_nascimento, perfis (nome_completo, email)`).eq("id", id).single();
@@ -46,6 +49,18 @@ export default function ProntuarioPage() {
     // Busca Exames
     const { data: dataExames } = await supabase.from("exames").select("*").eq("paciente_id", id).order("data_upload", { ascending: false });
     if (dataExames) setExames(dataExames);
+
+    // Busca Última Anamnese
+    const { data: dataAnamnese } = await supabase
+      .from("anamneses")
+      .select("*")
+      .eq("paciente_id", id)
+      .order("data_anamnese", { ascending: false })
+      .order("criado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (dataAnamnese) setUltimaAnamnese(dataAnamnese);
 
     // NOVO: Busca Histórico de Pesos e formata para o Gráfico
     const { data: dataHistorico } = await supabase
@@ -165,15 +180,15 @@ export default function ProntuarioPage() {
   const imc = (paciente.peso_kg / ((paciente.altura_cm / 100) * (paciente.altura_cm / 100))).toFixed(1);
 
   return (
-    <div className="p-8 md:p-12">
+    <div className="p-4 sm:p-6 md:p-12 max-w-7xl mx-auto">
       
       {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div className="flex items-center gap-4">
           <button onClick={() => router.push('/dashboard/pacientes')} className="text-gray-500 hover:text-emerald-700 bg-white p-2 rounded-lg shadow-sm border border-gray-200 transition-colors">← Voltar</button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">Prontuário Médico</h1>
-            <p className="text-gray-500 mt-1">Detalhes e acompanhamento do paciente.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Prontuário Médico</h1>
+            <p className="text-gray-500 mt-1 text-sm sm:text-base">Detalhes e acompanhamento do paciente.</p>
           </div>
         </div>
         
@@ -181,31 +196,100 @@ export default function ProntuarioPage() {
         <button 
           onClick={handleAcessarPlanoDireto}
           disabled={gerandoPlano}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition-transform transform hover:-translate-y-0.5 flex items-center gap-2 disabled:opacity-50"
+          className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition-transform transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50"
         >
           {gerandoPlano ? "Abrindo..." : "📋 Gerar Plano Alimentar"}
         </button>
       </div> {/* <-- ESSA É A DIV QUE ESTAVA FALTANDO! */}
 
       {/* Cartão do Paciente */}
-      <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-8 mb-8">
-        <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold text-4xl border-4 border-emerald-50">
-          {paciente.perfis.nome_completo.charAt(0)}
-        </div>
-        <div className="flex-1">
-          <h2 className="text-2xl font-bold text-gray-800">{paciente.perfis.nome_completo}</h2>
-          <p className="text-gray-500 mb-4">{paciente.perfis.email}</p>
-          <div className="flex gap-4 flex-wrap">
-            <span className="bg-gray-100 text-gray-700 px-4 py-1.5 rounded-full text-sm font-medium">{calcularIdade(paciente.data_nascimento)} anos</span>
-            <span className="bg-emerald-50 text-emerald-700 px-4 py-1.5 rounded-full text-sm font-medium">IMC: {imc}</span>
+      <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
+        <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold text-4xl border-4 border-emerald-50 shrink-0">
+            {paciente.perfis.nome_completo.charAt(0)}
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">{paciente.perfis.nome_completo}</h2>
+            <p className="text-gray-500 mb-3">{paciente.perfis.email}</p>
+            <div className="flex gap-2 flex-wrap items-center">
+              <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">{calcularIdade(paciente.data_nascimento)} anos</span>
+              <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-semibold">IMC: {imc}</span>
+              {ultimaAnamnese?.objetivo_principal && (
+                <span className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                  🎯 {ultimaAnamnese.objetivo_principal}
+                </span>
+              )}
+              {ultimaAnamnese?.alergias_intolerancias && (
+                <span className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                  ⚠️ Alergia/Intolerância
+                </span>
+              )}
+            </div>
           </div>
         </div>
+
+        <button
+          onClick={() => router.push(`/dashboard/pacientes/${id}/anamnese`)}
+          className="w-full md:w-auto bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-5 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-sm shrink-0"
+        >
+          📋 {ultimaAnamnese ? "Ver Anamnese Completa" : "+ Preencher Anamnese"}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Lado Esquerdo */}
         <div className="space-y-8 lg:col-span-1">
+
+          {/* BLOCO: Anamnese Nutricional Rápida */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <span>📋</span> Anamnese
+              </h3>
+              <button 
+                onClick={() => router.push(`/dashboard/pacientes/${id}/anamnese`)}
+                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline"
+              >
+                {ultimaAnamnese ? "Detalhes →" : "+ Preencher"}
+              </button>
+            </div>
+
+            {ultimaAnamnese ? (
+              <div className="space-y-3 text-xs">
+                <div className="bg-gray-50 p-3 rounded-xl">
+                  <span className="text-gray-400 block font-medium mb-0.5">Objetivo</span>
+                  <span className="text-gray-800 font-semibold">{ultimaAnamnese.objetivo_principal}</span>
+                </div>
+                {ultimaAnamnese.alergias_intolerancias && (
+                  <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                    <span className="text-amber-800 block font-bold mb-0.5">⚠️ Alergias / Intolerâncias</span>
+                    <span className="text-amber-900 line-clamp-2">{ultimaAnamnese.alergias_intolerancias}</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-gray-50 p-2.5 rounded-xl">
+                    <span className="text-gray-400 block font-medium mb-0.5">Água</span>
+                    <span className="text-gray-800 font-semibold truncate block">{ultimaAnamnese.consumo_agua || "—"}</span>
+                  </div>
+                  <div className="bg-gray-50 p-2.5 rounded-xl">
+                    <span className="text-gray-400 block font-medium mb-0.5">Atividade</span>
+                    <span className="text-gray-800 font-semibold truncate block">{ultimaAnamnese.nivel_atividade || "—"}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <p className="text-xs text-gray-500 mb-2">Nenhuma anamnese cadastrada.</p>
+                <button
+                  onClick={() => router.push(`/dashboard/pacientes/${id}/anamnese`)}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm"
+                >
+                  Preencher Agora
+                </button>
+              </div>
+            )}
+          </div>
           
           {/* BLOCO: Medidas */}
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">

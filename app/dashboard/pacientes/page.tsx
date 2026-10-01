@@ -131,16 +131,16 @@ export default function PacientesPage() {
   });
 
   return (
-    <div className="p-8 md:p-12">
-      <div className="flex justify-between items-center mb-10">
+    <div className="p-4 sm:p-6 md:p-12 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-10">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Meus Pacientes</h1>
-          <p className="text-gray-500 mt-1">Gerencie os pacientes do seu consultório.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Meus Pacientes</h1>
+          <p className="text-gray-500 mt-1 text-sm sm:text-base">Gerencie os pacientes do seu consultório.</p>
         </div>
         
         <button 
           onClick={() => setMostrarFormulario(!mostrarFormulario)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold shadow-sm transition-colors"
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold shadow-sm transition-colors text-center"
         >
           {mostrarFormulario ? "Voltar para Lista" : "+ Novo Paciente"}
         </button>
@@ -200,14 +200,14 @@ export default function PacientesPage() {
             />
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <table className="w-full text-left border-collapse">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[500px]">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="p-4 font-semibold text-gray-600">Nome do Paciente</th>
-                  <th className="p-4 font-semibold text-gray-600 hidden md:table-cell">E-mail</th>
-                  <th className="p-4 font-semibold text-gray-600 text-center">Peso</th>
-                  <th className="p-4 font-semibold text-gray-600 text-center">Ações</th>
+                <tr className="bg-gray-50 border-b border-gray-100 text-xs sm:text-sm">
+                  <th className="p-3.5 sm:p-4 font-semibold text-gray-600">Nome do Paciente</th>
+                  <th className="p-3.5 sm:p-4 font-semibold text-gray-600 hidden md:table-cell">E-mail</th>
+                  <th className="p-3.5 sm:p-4 font-semibold text-gray-600 text-center">Peso</th>
+                  <th className="p-3.5 sm:p-4 font-semibold text-gray-600 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -224,30 +224,30 @@ export default function PacientesPage() {
                   // NOVO: Alterado de pacientes.map para pacientesFiltrados.map
                   pacientesFiltrados.map((paciente) => (
                     <tr key={paciente.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                      <td className="p-4">
-                        <p className="font-bold text-gray-800">{paciente.perfis?.nome_completo}</p>
-                        <p className="text-sm text-gray-500 md:hidden">{paciente.perfis?.email}</p>
+                      <td className="p-3.5 sm:p-4">
+                        <p className="font-bold text-gray-800 text-sm sm:text-base">{paciente.perfis?.nome_completo}</p>
+                        <p className="text-xs text-gray-500 md:hidden">{paciente.perfis?.email}</p>
                       </td>
-                      <td className="p-4 hidden md:table-cell text-gray-600">{paciente.perfis?.email}</td>
-                      <td className="p-4 text-center text-gray-600">{paciente.peso_kg} kg</td>
-                      <td className="p-4 text-center space-x-4">
-                        
-                        {/* Conectando o botão de Ver Detalhes */}
-                        <button 
-                          onClick={() => handleVerDetalhes(paciente)}
-                          className="text-emerald-600 hover:text-emerald-800 font-medium text-sm transition-colors"
-                        >
-                          Ver detalhes
-                        </button>
+                      <td className="p-3.5 sm:p-4 hidden md:table-cell text-gray-600 text-sm">{paciente.perfis?.email}</td>
+                      <td className="p-3.5 sm:p-4 text-center text-gray-600 text-sm">{paciente.peso_kg} kg</td>
+                      <td className="p-3.5 sm:p-4 text-center">
+                        <div className="flex items-center justify-center gap-3">
+                          {/* Conectando o botão de Ver Detalhes */}
+                          <button 
+                            onClick={() => handleVerDetalhes(paciente)}
+                            className="text-emerald-600 hover:text-emerald-800 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap bg-emerald-50 px-2.5 py-1 rounded-lg"
+                          >
+                            Ver detalhes
+                          </button>
 
-                        {/* Adicionando o botão de Excluir */}
-                        <button 
-                          onClick={() => handleExcluirPaciente(paciente.id)}
-                          className="text-red-500 hover:text-red-700 font-medium text-sm transition-colors"
-                        >
-                          Excluir
-                        </button>
-
+                          {/* Adicionando o botão de Excluir */}
+                          <button 
+                            onClick={() => handleExcluirPaciente(paciente.id)}
+                            className="text-red-500 hover:text-red-700 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap px-2 py-1"
+                          >
+                            Excluir
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
