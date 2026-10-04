@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClient } from "../../../../lib/supabase/client";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -33,6 +33,20 @@ export default function ProntuarioPage() {
   // NOVO: Estado para guardar a última anamnese nutricional
   const [ultimaAnamnese, setUltimaAnamnese] = useState<any>(null);
 
+  // NOVO: Estados do Copiloto Nutricional IA
+  const [copilotoAberto, setCopilotoAberto] = useState(false);
+  const [mensagensCopiloto, setMensagensCopiloto] = useState<Array<{ role: "user" | "model"; content: string }>>([]);
+  const [inputCopiloto, setInputCopiloto] = useState("");
+  const [carregandoCopiloto, setCarregandoCopiloto] = useState(false);
+  const [ultimosExamesLab, setUltimosExamesLab] = useState<any>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (copilotoAberto) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [mensagensCopiloto, copilotoAberto]);
+
   const carregarDados = async () => {
     // Busca Paciente
     const { data: dataPaciente } = await supabase.from("pacientes").select(`id, peso_kg, altura_cm, data_nascimento, perfis (nome_completo, email)`).eq("id", id).single();
@@ -61,6 +75,17 @@ export default function ProntuarioPage() {
       .maybeSingle();
 
     if (dataAnamnese) setUltimaAnamnese(dataAnamnese);
+
+    // Busca Últimos Exames Laboratoriais
+    const { data: dataLab } = await supabase
+      .from("exames_laboratoriais")
+      .select("*")
+      .eq("paciente_id", id)
+      .order("data_exame", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (dataLab) setUltimosExamesLab(dataLab);
 
     // NOVO: Busca Histórico de Pesos e formata para o Gráfico
     const { data: dataHistorico } = await supabase
@@ -179,6 +204,60 @@ export default function ProntuarioPage() {
   };
   const imc = (paciente.peso_kg / ((paciente.altura_cm / 100) * (paciente.altura_cm / 100))).toFixed(1);
 
+  const handleEnviarCopiloto = async (textoManual?: string) => {
+    const msgTexto = (textoManual || inputCopiloto).trim();
+    if (!msgTexto || carregandoCopiloto) return;
+
+    const novaLista = [
+      ...mensagensCopiloto,
+      { role: "user" as const, content: msgTexto }
+    ];
+
+    setMensagensCopiloto(novaLista);
+    setInputCopiloto("");
+    setCarregandoCopiloto(true);
+
+    try {
+      const res = await fetch("/api/ai/copiloto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mensagem: msgTexto,
+          historico: mensagensCopiloto,
+          contextoPaciente: {
+            nome: paciente?.perfis?.nome_completo,
+            idade: paciente?.data_nascimento ? calcularIdade(paciente.data_nascimento) : null,
+            peso: paciente?.peso_kg,
+            altura: paciente?.altura_cm,
+            imc,
+            anamnese: ultimaAnamnese,
+            ultimos_exames: ultimosExamesLab
+          }
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Erro ao consultar o Copiloto.");
+      }
+
+      setMensagensCopiloto([
+        ...novaLista,
+        { role: "model" as const, content: data.resposta }
+      ]);
+    } catch (err: any) {
+      setMensagensCopiloto([
+        ...novaLista,
+        {
+          role: "model" as const,
+          content: `⚠️ Desculpe, não consegui processar a resposta: ${err.message}`
+        }
+      ]);
+    } finally {
+      setCarregandoCopiloto(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 md:p-12 max-w-7xl mx-auto">
       
@@ -192,15 +271,26 @@ export default function ProntuarioPage() {
           </div>
         </div>
         
-        {/* Botão Super Inteligente */}
-        <button 
-          onClick={handleAcessarPlanoDireto}
-          disabled={gerandoPlano}
-          className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition-transform transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          {gerandoPlano ? "Abrindo..." : "📋 Gerar Plano Alimentar"}
-        </button>
-      </div> {/* <-- ESSA É A DIV QUE ESTAVA FALTANDO! */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+          {/* Botão Copiloto IA */}
+          <button
+            onClick={() => setCopilotoAberto(true)}
+            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-5 py-3 rounded-xl font-bold shadow-md transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span className="text-lg">✨</span>
+            <span>Copiloto IA</span>
+          </button>
+
+          {/* Botão Super Inteligente */}
+          <button 
+            onClick={handleAcessarPlanoDireto}
+            disabled={gerandoPlano}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition-transform transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+          >
+            {gerandoPlano ? "Abrindo..." : "📋 Gerar Plano Alimentar"}
+          </button>
+        </div>
+      </div>
 
       {/* Cartão do Paciente */}
       <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
@@ -350,9 +440,10 @@ export default function ProntuarioPage() {
             {/* NOVO BOTÃO ADICIONADO AQUI */}
             <button 
               onClick={() => router.push(`/dashboard/pacientes/${id}/analise-exames`)}
-              className="w-full mb-6 bg-blue-50 text-blue-700 border border-blue-200 py-3 rounded-xl font-bold hover:bg-blue-100 transition-colors flex justify-center items-center gap-2 shadow-sm"
+              className="w-full mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-700 hover:from-blue-100 hover:to-indigo-100 py-3 rounded-xl font-bold transition-all flex justify-center items-center gap-2 shadow-sm cursor-pointer"
             >
-              🔬 Inserir e Analisar Resultados
+              <span>🔬 Inserir e Analisar Resultados</span>
+              <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">IA ✨</span>
             </button>
             
             <div className="mb-6">
@@ -405,6 +496,225 @@ export default function ProntuarioPage() {
         </div>
 
       </div>
+
+      {/* Botão Flutuante do Copiloto IA */}
+      {!copilotoAberto && (
+        <button
+          onClick={() => setCopilotoAberto(true)}
+          className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-5 py-3.5 rounded-full font-bold shadow-2xl border-2 border-white transition-all transform hover:scale-105 flex items-center gap-2.5 group cursor-pointer"
+          title="Abrir Copiloto Nutricional IA"
+        >
+          <span className="text-xl animate-pulse">✨</span>
+          <span className="text-sm font-semibold">Copiloto IA</span>
+          <span className="hidden sm:inline-block text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-medium">Clínico</span>
+        </button>
+      )}
+
+      {/* Drawer / Chat Lateral do Copiloto IA */}
+      {copilotoAberto && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          {/* Backdrop */}
+          <div 
+            onClick={() => setCopilotoAberto(false)} 
+            className="absolute inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+          />
+
+          <div className="fixed inset-y-0 right-0 max-w-full flex">
+            <div className="w-screen max-w-full sm:max-w-md md:max-w-lg bg-white shadow-2xl flex flex-col h-full animate-in slide-in-from-right duration-300">
+              
+              {/* Header do Copiloto */}
+              <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-600 text-white flex items-center justify-between shadow-md shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center text-xl shadow-inner shrink-0">
+                    ✨
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base sm:text-lg flex items-center gap-2">
+                      Copiloto NutriOne
+                      <span className="bg-emerald-400/30 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">IA Ativa</span>
+                    </h3>
+                    <p className="text-xs text-emerald-100 truncate max-w-[220px] sm:max-w-xs">
+                      Paciente: {paciente.perfis.nome_completo}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCopilotoAberto(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-lg font-bold transition-colors cursor-pointer"
+                  title="Fechar Copiloto"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Faixa com Resumo Rápido do Contexto Carregado */}
+              <div className="bg-emerald-50 border-b border-emerald-100 px-4 py-2.5 flex items-center justify-between text-xs text-emerald-800 shrink-0">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+                  <span className="font-semibold text-emerald-900 shrink-0">Contexto:</span>
+                  <span className="bg-white px-2 py-0.5 rounded border border-emerald-200 shrink-0">IMC {imc}</span>
+                  {ultimaAnamnese ? (
+                    <span className="bg-white px-2 py-0.5 rounded border border-emerald-200 truncate max-w-[150px] shrink-0">
+                      🎯 {ultimaAnamnese.objetivo_principal || "Anamnese OK"}
+                    </span>
+                  ) : (
+                    <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 shrink-0">Sem Anamnese</span>
+                  )}
+                  {ultimosExamesLab ? (
+                    <span className="bg-white px-2 py-0.5 rounded border border-emerald-200 shrink-0">🔬 Exames OK</span>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Área de Mensagens */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 bg-gray-50/50">
+                {/* Mensagem Inicial de Boas-vindas */}
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-sm font-bold shadow-xs">
+                    ✨
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm text-sm text-gray-800 space-y-2 max-w-[90%]">
+                    <p className="font-semibold text-emerald-800">
+                      Olá, nutri! Sou seu copiloto clínico.
+                    </p>
+                    <p className="text-gray-600 leading-relaxed">
+                      Já analisei o prontuário de <strong>{paciente.perfis.nome_completo}</strong>{ultimaAnamnese ? ", incluindo a anamnese nutricional" : ""}{ultimosExamesLab ? " e os exames de sangue" : ""}.
+                    </p>
+                    <p className="text-gray-600 leading-relaxed">
+                      Como posso ajudar a otimizar a conduta dietoterápica hoje?
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sugestões Rápidas (Chips de Pergunta) */}
+                {mensagensCopiloto.length === 0 && (
+                  <div className="pl-11 space-y-2 pt-1">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Perguntas Rápidas:</p>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => handleEnviarCopiloto(
+                          ultimaAnamnese?.objetivo_principal 
+                            ? `Quais estratégias dietoterápicas baseadas em evidências você sugere para atingir o objetivo: "${ultimaAnamnese.objetivo_principal}"?`
+                            : "Sugira 3 condutas dietoterápicas prioritárias para este paciente com base no peso e IMC."
+                        )}
+                        className="text-left text-xs bg-white hover:bg-emerald-50 hover:border-emerald-300 text-gray-700 hover:text-emerald-800 p-2.5 rounded-xl border border-gray-200 transition-all shadow-2xs cursor-pointer"
+                      >
+                        🎯 {ultimaAnamnese?.objetivo_principal ? `Estratégia para ${ultimaAnamnese.objetivo_principal}` : "Conduta prioritária para o objetivo"}
+                      </button>
+
+                      <button
+                        onClick={() => handleEnviarCopiloto(
+                          "Sugira 3 opções de substituições inteligentes e sacietogênicas para o café da manhã ou lanches considerando a rotina do paciente."
+                        )}
+                        className="text-left text-xs bg-white hover:bg-emerald-50 hover:border-emerald-300 text-gray-700 hover:text-emerald-800 p-2.5 rounded-xl border border-gray-200 transition-all shadow-2xs cursor-pointer"
+                      >
+                        🥑 Substituições inteligentes para café/lanche
+                      </button>
+
+                      {ultimosExamesLab && (
+                        <button
+                          onClick={() => handleEnviarCopiloto(
+                            "Com base nos exames laboratoriais registrados, quais nutrientes ou ajustes na dieta devo priorizar?"
+                          )}
+                          className="text-left text-xs bg-white hover:bg-emerald-50 hover:border-emerald-300 text-gray-700 hover:text-emerald-800 p-2.5 rounded-xl border border-gray-200 transition-all shadow-2xs cursor-pointer"
+                        >
+                          🔬 Conduta dietética com base nos exames laboratoriais
+                        </button>
+                      )}
+
+                      {ultimaAnamnese?.alergias_intolerancias && (
+                        <button
+                          onClick={() => handleEnviarCopiloto(
+                            `Como contornar as alergias/intolerâncias (${ultimaAnamnese.alergias_intolerancias}) garantindo o aporte nutricional adequado?`
+                          )}
+                          className="text-left text-xs bg-white hover:bg-emerald-50 hover:border-emerald-300 text-gray-700 hover:text-emerald-800 p-2.5 rounded-xl border border-gray-200 transition-all shadow-2xs cursor-pointer"
+                        >
+                          ⚠️ Manejo nutricional das alergias / intolerâncias
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Histórico da Conversa */}
+                {mensagensCopiloto.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-start gap-3 ${
+                      msg.role === "user" ? "flex-row-reverse" : ""
+                    }`}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm font-bold shadow-xs ${
+                        msg.role === "user"
+                          ? "bg-emerald-600 text-white"
+                          : "bg-emerald-100 text-emerald-700"
+                      }`}
+                    >
+                      {msg.role === "user" ? "Você" : "✨"}
+                    </div>
+                    <div
+                      className={`p-4 rounded-2xl text-sm max-w-[85%] sm:max-w-[80%] shadow-sm ${
+                        msg.role === "user"
+                          ? "bg-emerald-600 text-white rounded-tr-none whitespace-pre-wrap leading-relaxed"
+                          : "bg-white text-gray-800 rounded-tl-none border border-gray-100 whitespace-pre-wrap leading-relaxed"
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Carregando Resposta */}
+                {carregandoCopiloto && (
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-sm font-bold shadow-xs">
+                      ✨
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm text-sm text-gray-500 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
+                      <span className="text-xs font-medium text-emerald-800">Copiloto formulando resposta clínica...</span>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input e Envio */}
+              <div className="p-4 bg-white border-t border-gray-200 shadow-inner shrink-0">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleEnviarCopiloto();
+                  }}
+                  className="flex gap-2 items-center"
+                >
+                  <input
+                    type="text"
+                    value={inputCopiloto}
+                    onChange={(e) => setInputCopiloto(e.target.value)}
+                    placeholder="Pergunte ao copiloto nutricional..."
+                    disabled={carregandoCopiloto}
+                    className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 outline-none text-sm disabled:bg-gray-100 transition-all"
+                  />
+                  <button
+                    type="submit"
+                    disabled={carregandoCopiloto || !inputCopiloto.trim()}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 sm:px-5 py-3 rounded-xl transition-all shadow-md disabled:opacity-40 shrink-0 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Enviar</span>
+                    <span>➤</span>
+                  </button>
+                </form>
+                <p className="text-[11px] text-gray-400 text-center mt-2">
+                  NutriOne IA • Assistente para apoio à decisão clínica. Sempre valide as condutas.
+                </p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

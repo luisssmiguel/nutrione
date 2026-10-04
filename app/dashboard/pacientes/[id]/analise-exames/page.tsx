@@ -116,6 +116,91 @@ export default function AnaliseExamesPage() {
     glicemia: "", insulina: "", colesterol_total: "", hdl: "", ldl: "", triglicerideos: "",
     tsh: "", t3_livre: "", t4_livre: "", hemoglobina: "", leucocitos: ""
   });
+  // NOVO: Estados da IA para Leitura de Laudo
+  const [modalIaAberto, setModalIaAberto] = useState(false);
+  const [modoEntradaIa, setModoEntradaIa] = useState<"texto" | "arquivo">("texto");
+  const [textoLaudo, setTextoLaudo] = useState("");
+  const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
+  const [carregandoIa, setCarregandoIa] = useState(false);
+  const [resumoIa, setResumoIa] = useState<string | null>(null);
+
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleProcessarIa = async () => {
+    if (modoEntradaIa === "texto" && !textoLaudo.trim()) {
+      alert("Por favor, cole o texto do laudo.");
+      return;
+    }
+    if (modoEntradaIa === "arquivo" && !arquivoSelecionado) {
+      alert("Por favor, selecione uma foto ou PDF do laudo.");
+      return;
+    }
+
+    setCarregandoIa(true);
+    try {
+      let body: any = {};
+      if (modoEntradaIa === "texto") {
+        body.texto = textoLaudo;
+      } else if (arquivoSelecionado) {
+        const base64 = await convertFileToBase64(arquivoSelecionado);
+        let mime = arquivoSelecionado.type;
+        if (!mime || mime === "application/octet-stream") {
+          const nomeMinusculo = arquivoSelecionado.name.toLowerCase();
+          if (nomeMinusculo.endsWith(".pdf")) mime = "application/pdf";
+          else if (nomeMinusculo.endsWith(".png")) mime = "image/png";
+          else if (nomeMinusculo.endsWith(".jpg") || nomeMinusculo.endsWith(".jpeg")) mime = "image/jpeg";
+          else if (nomeMinusculo.endsWith(".webp")) mime = "image/webp";
+          else mime = "application/pdf";
+        }
+        body.arquivoBase64 = base64;
+        body.mimeType = mime;
+        body.arquivo = { base64, mimeType: mime };
+      }
+
+      const res = await fetch("/api/ai/exames", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Erro ao processar laudo.");
+      }
+
+      if (data.exames) {
+        const novosValores: any = { ...valores };
+        let countPreenchidos = 0;
+        for (const [campo, val] of Object.entries(data.exames)) {
+          if (val !== null && val !== undefined && campo in dicionarioExames) {
+            novosValores[campo] = val.toString();
+            countPreenchidos++;
+          }
+        }
+        setValores(novosValores);
+        if (data.resumo) setResumoIa(data.resumo);
+        setModalIaAberto(false);
+        setTextoLaudo("");
+        setArquivoSelecionado(null);
+        alert(`✨ Sucesso! A IA identificou e preencheu ${countPreenchidos} exames automaticamente.`);
+      }
+    } catch (err: any) {
+      alert("Falha na leitura do laudo com IA: " + err.message);
+    } finally {
+      setCarregandoIa(false);
+    }
+  };
 
   const carregarDados = async () => {
     const { data: dataPacientes } = await supabase.from("pacientes").select(`id, perfis (nome_completo)`).eq("id", id).single();
@@ -255,6 +340,41 @@ export default function AnaliseExamesPage() {
               O sistema possui 4 níveis de alerta: Ideal, Atenção, Alto e Baixo.
             </span>
           </div>
+
+          {/* BANNER DO LEITOR DE EXAMES COM IA */}
+          <div className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-800 rounded-2xl p-5 sm:p-6 text-white mb-6 shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">✨</span>
+                <h3 className="font-bold text-lg">Leitor Inteligente de Laudos (IA)</h3>
+                <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Gemini 3.8 Flash</span>
+              </div>
+              <p className="text-xs text-emerald-100 mt-1.5 max-w-xl leading-relaxed">
+                Envie uma foto/PDF do laudo do laboratório ou cole o texto do exame. A IA extrai e preenche todos os valores automaticamente para você!
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setModalIaAberto(true)}
+              className="bg-white hover:bg-emerald-50 text-emerald-900 font-bold px-6 py-3 rounded-xl shadow-lg transition-transform transform hover:-translate-y-0.5 text-sm flex items-center justify-center gap-2 self-stretch sm:self-auto shrink-0"
+            >
+              <span>🪄</span> Ler Laudo com IA
+            </button>
+          </div>
+
+          {/* SÍNTESE CLÍNICA GERADA PELA IA */}
+          {resumoIa && (
+            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-emerald-900 text-sm mb-6 flex items-start gap-3">
+              <span className="text-2xl">💡</span>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs uppercase tracking-wider text-emerald-800">Síntese Clínica da IA (Gemini):</span>
+                  <button type="button" onClick={() => setResumoIa(null)} className="text-emerald-500 hover:text-emerald-700 text-xs">✕ Ocultar</button>
+                </div>
+                <p className="mt-1 text-xs sm:text-sm text-emerald-900 leading-relaxed font-medium">{resumoIa}</p>
+              </div>
+            </div>
+          )}
           
           <form onSubmit={handleSalvarExames} className="space-y-8">
             <div>
@@ -396,6 +516,152 @@ export default function AnaliseExamesPage() {
           )}
         </div>
       )}
+
+      {/* ========================================== */}
+      {/* MODAL DO LEITOR INTELIGENTE COM IA        */}
+      {/* ========================================== */}
+      {modalIaAberto && (
+        <div 
+          onClick={() => !carregandoIa && setModalIaAberto(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-gray-100 space-y-6 animate-in fade-in zoom-in duration-150"
+          >
+            {/* Topo do Modal */}
+            <div className="flex justify-between items-start border-b border-gray-100 pb-4">
+              <div>
+                <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>✨</span> Inteligência Artificial (Gemini 3.8 Flash)
+                </span>
+                <h3 className="text-2xl font-bold text-gray-800 mt-1">
+                  Leitor Automático de Exames
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  A IA lerá o laudo do paciente e preencherá os campos de resultados sozinha.
+                </p>
+              </div>
+              <button 
+                disabled={carregandoIa}
+                onClick={() => setModalIaAberto(false)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors text-lg disabled:opacity-30"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Alternador de Abas: Texto vs Arquivo */}
+            <div className="flex rounded-xl bg-gray-100 p-1">
+              <button
+                type="button"
+                onClick={() => setModoEntradaIa("texto")}
+                className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${
+                  modoEntradaIa === "texto"
+                    ? "bg-white text-emerald-800 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                📝 Colar Texto do Exame
+              </button>
+              <button
+                type="button"
+                onClick={() => setModoEntradaIa("arquivo")}
+                className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${
+                  modoEntradaIa === "arquivo"
+                    ? "bg-white text-emerald-800 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                📎 Anexar Foto ou PDF
+              </button>
+            </div>
+
+            {/* Conteúdo da Aba: Texto */}
+            {modoEntradaIa === "texto" && (
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-gray-700">
+                  Cole o texto copiado do laudo do laboratório:
+                </label>
+                <textarea
+                  value={textoLaudo}
+                  onChange={(e) => setTextoLaudo(e.target.value)}
+                  disabled={carregandoIa}
+                  rows={8}
+                  placeholder="Exemplo:
+GLICEMIA EM JEJUM: 88 mg/dL (VR: 70 a 99)
+COLESTEROL TOTAL: 195 mg/dL (VR: inferior a 190)
+HDL: 55 mg/dL
+LDL: 110 mg/dL
+TRIGLICERIDEOS: 115 mg/dL
+TSH: 2.15 uUI/mL..."
+                  className="w-full p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-300 focus:border-emerald-500 outline-none text-xs text-gray-800 leading-relaxed resize-none bg-gray-50 font-mono"
+                />
+              </div>
+            )}
+
+            {/* Conteúdo da Aba: Arquivo */}
+            {modoEntradaIa === "arquivo" && (
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-gray-700">
+                  Foto ou PDF do exame:
+                </label>
+                <label className="border-2 border-dashed border-gray-300 hover:border-emerald-500 rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center cursor-pointer bg-gray-50 hover:bg-emerald-50/30 transition-all text-center">
+                  <span className="text-3xl mb-2">📄</span>
+                  <span className="text-sm font-bold text-gray-700">
+                    {arquivoSelecionado ? arquivoSelecionado.name : "Clique para selecionar Foto ou PDF"}
+                  </span>
+                  <span className="text-xs text-gray-400 mt-1">
+                    {arquivoSelecionado
+                      ? `${(arquivoSelecionado.size / 1024).toFixed(1)} KB selecionados`
+                      : "Suporta imagens (.png, .jpg, .webp) ou laudos em .pdf"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    disabled={carregandoIa}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) setArquivoSelecionado(f);
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* Botões de Ação */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={carregandoIa}
+                onClick={() => setModalIaAberto(false)}
+                className="px-5 py-2.5 rounded-xl font-semibold text-sm text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={carregandoIa}
+                onClick={handleProcessarIa}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                {carregandoIa ? (
+                  <>
+                    <span className="animate-spin inline-block">⏳</span> Analisando com IA...
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span> Extrair Dados com IA
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
