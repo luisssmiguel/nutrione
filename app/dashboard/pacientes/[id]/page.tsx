@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { createClient } from "../../../../lib/supabase/client";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useReactToPrint } from "react-to-print";
 // Importações da biblioteca de gráficos!
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -33,6 +34,12 @@ export default function ProntuarioPage() {
   // NOVO: Estado para guardar a última anamnese nutricional
   const [ultimaAnamnese, setUltimaAnamnese] = useState<any>(null);
 
+  // NOVO: Estado para guardar a última avaliação antropométrica
+  const [ultimaMedida, setUltimaMedida] = useState<any>(null);
+
+  // NOVO: Estado para dados do Nutricionista logado (para o relatório)
+  const [nutricionista, setNutricionista] = useState<any>(null);
+
   // NOVO: Estados do Copiloto Nutricional IA
   const [copilotoAberto, setCopilotoAberto] = useState(false);
   const [mensagensCopiloto, setMensagensCopiloto] = useState<Array<{ role: "user" | "model"; content: string }>>([]);
@@ -41,6 +48,16 @@ export default function ProntuarioPage() {
   const [ultimosExamesLab, setUltimosExamesLab] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // ==========================================
+  // REF E HOOK DE EXPORTAÇÃO DO RELATÓRIO PDF
+  // ==========================================
+  const relatorioPDFRef = useRef<HTMLDivElement>(null);
+
+  const handleExportarRelatorioPDF = useReactToPrint({
+    contentRef: relatorioPDFRef,
+    documentTitle: `Relatorio_Clinico_${paciente?.perfis?.nome_completo || "Paciente"}`,
+  });
+
   useEffect(() => {
     if (copilotoAberto) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -48,6 +65,18 @@ export default function ProntuarioPage() {
   }, [mensagensCopiloto, copilotoAberto]);
 
   const carregarDados = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Busca dados do Nutricionista
+    if (user) {
+      const { data: dataNutri } = await supabase
+        .from("perfis")
+        .select("nome_completo, email")
+        .eq("id", user.id)
+        .single();
+      if (dataNutri) setNutricionista(dataNutri);
+    }
+
     // Busca Paciente
     const { data: dataPaciente } = await supabase.from("pacientes").select(`id, peso_kg, altura_cm, data_nascimento, perfis (nome_completo, email)`).eq("id", id).single();
     if (dataPaciente) {
@@ -86,6 +115,17 @@ export default function ProntuarioPage() {
       .maybeSingle();
 
     if (dataLab) setUltimosExamesLab(dataLab);
+
+    // Busca Última Medida Antropométrica
+    const { data: dataMedida } = await supabase
+      .from("medidas_paciente")
+      .select("*")
+      .eq("paciente_id", id)
+      .order("data_avaliacao", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (dataMedida) setUltimaMedida(dataMedida);
 
     // NOVO: Busca Histórico de Pesos e formata para o Gráfico
     const { data: dataHistorico } = await supabase
@@ -193,16 +233,19 @@ export default function ProntuarioPage() {
     }
   };
 
-  if (loading) return <div className="p-12 text-emerald-700 font-medium text-lg">Carregando prontuário...</div>;
-  if (!paciente) return <div className="p-12 text-red-500 font-medium text-lg">Paciente não encontrado.</div>;
-
   const calcularIdade = (dataNasc: string) => {
     const hoje = new Date(); const nasc = new Date(dataNasc);
     let idade = hoje.getFullYear() - nasc.getFullYear();
     if (hoje.getMonth() - nasc.getMonth() < 0 || (hoje.getMonth() - nasc.getMonth() === 0 && hoje.getDate() < nasc.getDate())) idade--;
     return idade;
   };
-  const imc = (paciente.peso_kg / ((paciente.altura_cm / 100) * (paciente.altura_cm / 100))).toFixed(1);
+  const imc = (paciente?.peso_kg / ((paciente?.altura_cm / 100) * (paciente?.altura_cm / 100))).toFixed(1);
+
+  const formatarData = (dataSql: string) => {
+    if (!dataSql) return "--";
+    const [ano, mes, dia] = dataSql.split("T")[0].split("-");
+    return `${dia}/${mes}/${ano}`;
+  };
 
   const handleEnviarCopiloto = async (textoManual?: string) => {
     const msgTexto = (textoManual || inputCopiloto).trim();
@@ -258,26 +301,39 @@ export default function ProntuarioPage() {
     }
   };
 
+  if (loading) return <div className="p-12 text-emerald-700 font-medium text-lg">Carregando prontuário...</div>;
+  if (!paciente) return <div className="p-12 text-red-500 font-medium text-lg">Paciente não encontrado.</div>;
+
   return (
     <div className="p-4 sm:p-6 md:p-12 max-w-7xl mx-auto">
       
       {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push('/dashboard/pacientes')} className="text-gray-500 hover:text-emerald-700 bg-white p-2 rounded-lg shadow-sm border border-gray-200 transition-colors">← Voltar</button>
+          <button onClick={() => router.push('/dashboard/pacientes')} className="text-gray-500 hover:text-emerald-700 bg-white p-2 rounded-lg shadow-sm border border-gray-200 transition-colors cursor-pointer">← Voltar</button>
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Prontuário Médico</h1>
             <p className="text-gray-500 mt-1 text-sm sm:text-base">Detalhes e acompanhamento do paciente.</p>
           </div>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          {/* Botão Relatório Clínico PDF */}
+          <button
+            onClick={handleExportarRelatorioPDF}
+            className="bg-gray-800 hover:bg-black text-white px-4 py-2.5 rounded-xl font-bold shadow-md transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer text-sm"
+            title="Exportar Prontuário Completo em PDF"
+          >
+            <span>📑</span>
+            <span>Relatório PDF</span>
+          </button>
+
           {/* Botão Copiloto IA */}
           <button
             onClick={() => setCopilotoAberto(true)}
-            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-5 py-3 rounded-xl font-bold shadow-md transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer"
+            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2.5 rounded-xl font-bold shadow-md transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer text-sm"
           >
-            <span className="text-lg">✨</span>
+            <span className="text-base">✨</span>
             <span>Copiloto IA</span>
           </button>
 
@@ -285,9 +341,9 @@ export default function ProntuarioPage() {
           <button 
             onClick={handleAcessarPlanoDireto}
             disabled={gerandoPlano}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition-transform transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-transform transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer text-sm"
           >
-            {gerandoPlano ? "Abrindo..." : "📋 Gerar Plano Alimentar"}
+            {gerandoPlano ? "Abrindo..." : "📋 Gerar Plano"}
           </button>
         </div>
       </div>
@@ -320,7 +376,7 @@ export default function ProntuarioPage() {
 
         <button
           onClick={() => router.push(`/dashboard/pacientes/${id}/anamnese`)}
-          className="w-full md:w-auto bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-5 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-sm shrink-0"
+          className="w-full md:w-auto bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-5 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-sm shrink-0 cursor-pointer"
         >
           📋 {ultimaAnamnese ? "Ver Anamnese Completa" : "+ Preencher Anamnese"}
         </button>
@@ -330,65 +386,18 @@ export default function ProntuarioPage() {
         
         {/* Lado Esquerdo */}
         <div className="space-y-8 lg:col-span-1">
-
-          {/* BLOCO: Anamnese Nutricional Rápida */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <span>📋</span> Anamnese
-              </h3>
-              <button 
-                onClick={() => router.push(`/dashboard/pacientes/${id}/anamnese`)}
-                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline"
-              >
-                {ultimaAnamnese ? "Detalhes →" : "+ Preencher"}
-              </button>
-            </div>
-
-            {ultimaAnamnese ? (
-              <div className="space-y-3 text-xs">
-                <div className="bg-gray-50 p-3 rounded-xl">
-                  <span className="text-gray-400 block font-medium mb-0.5">Objetivo</span>
-                  <span className="text-gray-800 font-semibold">{ultimaAnamnese.objetivo_principal}</span>
-                </div>
-                {ultimaAnamnese.alergias_intolerancias && (
-                  <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
-                    <span className="text-amber-800 block font-bold mb-0.5">⚠️ Alergias / Intolerâncias</span>
-                    <span className="text-amber-900 line-clamp-2">{ultimaAnamnese.alergias_intolerancias}</span>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-gray-50 p-2.5 rounded-xl">
-                    <span className="text-gray-400 block font-medium mb-0.5">Água</span>
-                    <span className="text-gray-800 font-semibold truncate block">{ultimaAnamnese.consumo_agua || "—"}</span>
-                  </div>
-                  <div className="bg-gray-50 p-2.5 rounded-xl">
-                    <span className="text-gray-400 block font-medium mb-0.5">Atividade</span>
-                    <span className="text-gray-800 font-semibold truncate block">{ultimaAnamnese.nivel_atividade || "—"}</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                <p className="text-xs text-gray-500 mb-2">Nenhuma anamnese cadastrada.</p>
-                <button
-                  onClick={() => router.push(`/dashboard/pacientes/${id}/anamnese`)}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm"
-                >
-                  Preencher Agora
-                </button>
-              </div>
-            )}
-          </div>
           
-          {/* BLOCO: Medidas */}
+          {/* BLOCO: Dados Físicos */}
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-bold text-gray-800">Medidas Atuais</h3>
+              <h3 className="text-lg font-bold text-gray-800">Dados Antropométricos</h3>
               {!editando ? (
-                <button onClick={() => setEditando(true)} className="text-sm text-emerald-600 font-medium hover:underline">Editar</button>
+                <button onClick={() => setEditando(true)} className="text-xs text-emerald-600 font-bold hover:underline cursor-pointer">Editar</button>
               ) : (
-                <button onClick={handleSalvarEdicao} className="text-sm bg-emerald-600 text-white px-3 py-1 rounded-md font-medium hover:bg-emerald-700">Salvar</button>
+                <div className="flex gap-2">
+                  <button onClick={handleSalvarEdicao} className="text-xs bg-emerald-600 text-white px-2 py-1 rounded font-bold cursor-pointer">Salvar</button>
+                  <button onClick={() => setEditando(false)} className="text-xs text-gray-500 cursor-pointer">Cancelar</button>
+                </div>
               )}
             </div>
             <div className="space-y-4">
@@ -404,9 +413,9 @@ export default function ProntuarioPage() {
             {/* NOVO BOTÃO ADICIONADO AQUI */}
             <button 
               onClick={() => router.push(`/dashboard/pacientes/${id}/medidas`)} 
-              className="w-full mt-6 bg-emerald-50 text-emerald-800 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors flex justify-center items-center gap-2"
+              className="w-full mt-6 bg-emerald-50 text-emerald-800 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors flex justify-center items-center gap-2 cursor-pointer"
             >
-              📊 Avaliação Completa
+              📊 Avaliação Completa & TMB
             </button>
           </div>
 
@@ -437,7 +446,7 @@ export default function ProntuarioPage() {
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
             <h3 className="text-lg font-bold text-gray-800 mb-6">Exames e Anexos</h3>
             
-            {/* NOVO BOTÃO ADICIONADO AQUI */}
+            {/* BOTÃO LEITOR DE EXAMES COM IA */}
             <button 
               onClick={() => router.push(`/dashboard/pacientes/${id}/analise-exames`)}
               className="w-full mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-blue-700 hover:from-blue-100 hover:to-indigo-100 py-3 rounded-xl font-bold transition-all flex justify-center items-center gap-2 shadow-sm cursor-pointer"
@@ -471,7 +480,7 @@ export default function ProntuarioPage() {
           <div className="mb-8">
             <textarea value={novaAnotacao} onChange={(e) => setNovaAnotacao(e.target.value)} placeholder="Digite aqui como foi a consulta, queixas do paciente, metas..." className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-300 focus:border-emerald-500 outline-none resize-none h-24 mb-3"></textarea>
             <div className="flex justify-end">
-              <button onClick={handleSalvarAnotacao} disabled={salvandoNota || !novaAnotacao.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-xl transition duration-300 shadow-sm disabled:opacity-50">
+              <button onClick={handleSalvarAnotacao} disabled={salvandoNota || !novaAnotacao.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-xl transition duration-300 shadow-sm disabled:opacity-50 cursor-pointer">
                 {salvandoNota ? "Salvando..." : "+ Salvar Anotação"}
               </button>
             </div>
@@ -486,7 +495,7 @@ export default function ProntuarioPage() {
                       <span className="text-xs text-gray-400 font-medium">
                         {new Date(nota.data_criacao).toLocaleDateString('pt-BR')} às {new Date(nota.data_criacao).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
                       </span>
-                      <button onClick={() => handleExcluirAnotacao(nota.id)} className="text-red-400 hover:text-red-600 text-xs font-semibold transition-colors">Excluir</button>
+                      <button onClick={() => handleExcluirAnotacao(nota.id)} className="text-red-400 hover:text-red-600 text-xs font-semibold transition-colors cursor-pointer">Excluir</button>
                     </div>
                   </div>
                   <p className="text-gray-700 whitespace-pre-wrap">{nota.texto}</p>
@@ -495,6 +504,241 @@ export default function ProntuarioPage() {
           </div>
         </div>
 
+      </div>
+
+      {/* ========================================================
+          DOCUMENTO TIMBRADO DE IMPRESSÃO (RELATÓRIO CLÍNICO PDF)
+      ======================================================== */}
+      <div className="hidden">
+        <div ref={relatorioPDFRef} className="p-10 bg-white text-gray-800 space-y-6 font-sans">
+          
+          {/* Cabeçalho Oficial do Relatório */}
+          <div className="flex justify-between items-center border-b-2 border-emerald-600 pb-4">
+            <div>
+              <h1 className="text-3xl font-extrabold text-emerald-800 tracking-tight">NutriOne</h1>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">Clínica & Consultoria Nutricional Integrada</p>
+            </div>
+            <div className="text-right">
+              <h2 className="text-base font-bold text-gray-800">Prontuário & Relatório Clínico</h2>
+              <p className="text-xs text-gray-500">
+                Emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+              {nutricionista?.nome_completo && (
+                <p className="text-xs font-semibold text-emerald-700 mt-0.5">Dr(a). {nutricionista.nome_completo}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Identificação do Paciente */}
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2">1. Identificação do Paciente</h3>
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-gray-500 block">Nome Completo:</span>
+                <span className="font-bold text-gray-800">{paciente.perfis.nome_completo}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">Idade / Nascimento:</span>
+                <span className="font-bold text-gray-800">{calcularIdade(paciente.data_nascimento)} anos ({formatarData(paciente.data_nascimento)})</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">E-mail:</span>
+                <span className="font-bold text-gray-800">{paciente.perfis.email}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">Peso Atual:</span>
+                <span className="font-bold text-gray-800">{paciente.peso_kg} kg</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">Altura:</span>
+                <span className="font-bold text-gray-800">{paciente.altura_cm} cm</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">IMC:</span>
+                <span className="font-bold text-gray-800">{imc} kg/m²</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Anamnese Nutricional */}
+          {ultimaAnamnese && (
+            <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+              <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">2. Anamnese & Histórico de Saúde</h3>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-gray-500 block font-semibold">Objetivo Principal:</span>
+                  <span className="text-gray-800">{ultimaAnamnese.objetivo_principal || "--"}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Alergias / Intolerâncias:</span>
+                  <span className="text-gray-800">{ultimaAnamnese.alergias_intolerancias || "Nenhuma relatada"}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Aversões / Preferências:</span>
+                  <span className="text-gray-800">{ultimaAnamnese.aversoes_preferencias || "Nenhuma restrição específica"}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Medicamentos & Suplementos:</span>
+                  <span className="text-gray-800">{ultimaAnamnese.medicamentos_suplementos || "Nenhum em uso"}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Ingestão Hídrica:</span>
+                  <span className="text-gray-800">{ultimaAnamnese.consumo_agua || "Não informada"}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Qualidade do Sono:</span>
+                  <span className="text-gray-800">{ultimaAnamnese.rotina_sono || "Não informada"}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Nível de Atividade Física:</span>
+                  <span className="text-gray-800">{ultimaAnamnese.nivel_atividade || "Sedentário"}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block font-semibold">Saúde Gastrointestinal:</span>
+                  <span className="text-gray-800">{ultimaAnamnese.saude_intestinal || "Normal"}</span>
+                </div>
+              </div>
+              {ultimaAnamnese.historico_clinico && (
+                <div className="pt-2 border-t border-gray-100 text-xs">
+                  <span className="text-gray-500 block font-semibold">Histórico Clínico e Familiar:</span>
+                  <p className="text-gray-700 leading-relaxed">{ultimaAnamnese.historico_clinico}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Composição Corporal & Antropometria Recente */}
+          {ultimaMedida && (
+            <div className="border border-gray-200 rounded-xl p-4 space-y-2">
+              <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                3. Última Avaliação Antropométrica ({formatarData(ultimaMedida.data_avaliacao)})
+              </h3>
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="bg-gray-50 p-2 rounded">
+                  <span className="text-gray-500 block">Gordura Corporal:</span>
+                  <span className="font-bold text-gray-800">{ultimaMedida.percentual_gordura || "--"}%</span>
+                </div>
+                <div className="bg-gray-50 p-2 rounded">
+                  <span className="text-gray-500 block">Massa Muscular:</span>
+                  <span className="font-bold text-gray-800">{ultimaMedida.massa_muscular_kg || "--"} kg</span>
+                </div>
+                <div className="bg-gray-50 p-2 rounded">
+                  <span className="text-gray-500 block">Gordura Visceral:</span>
+                  <span className="font-bold text-gray-800">{ultimaMedida.gordura_visceral || "--"}</span>
+                </div>
+                <div className="bg-gray-50 p-2 rounded">
+                  <span className="text-gray-500 block">Cintura:</span>
+                  <span className="font-bold text-gray-800">{ultimaMedida.circ_cintura || "--"} cm</span>
+                </div>
+                <div className="bg-gray-50 p-2 rounded">
+                  <span className="text-gray-500 block">Abdômen:</span>
+                  <span className="font-bold text-gray-800">{ultimaMedida.circ_abdomen || "--"} cm</span>
+                </div>
+                <div className="bg-gray-50 p-2 rounded">
+                  <span className="text-gray-500 block">Quadril:</span>
+                  <span className="font-bold text-gray-800">{ultimaMedida.circ_quadril || "--"} cm</span>
+                </div>
+                <div className="bg-gray-50 p-2 rounded">
+                  <span className="text-gray-500 block">Braço:</span>
+                  <span className="font-bold text-gray-800">{ultimaMedida.circ_braco || "--"} cm</span>
+                </div>
+                <div className="bg-gray-50 p-2 rounded">
+                  <span className="text-gray-500 block">Coxa:</span>
+                  <span className="font-bold text-gray-800">{ultimaMedida.circ_coxa || "--"} cm</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Exames Laboratoriais Mais Recentes */}
+          {ultimosExamesLab && (
+            <div className="border border-gray-200 rounded-xl p-4 space-y-2">
+              <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                4. Exames Laboratoriais Recentes ({formatarData(ultimosExamesLab.data_exame)})
+              </h3>
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                {ultimosExamesLab.glicemia && (
+                  <div className="border-l-2 border-emerald-500 pl-2">
+                    <span className="text-gray-500 block">Glicemia:</span>
+                    <span className="font-bold text-gray-800">{ultimosExamesLab.glicemia} mg/dL</span>
+                  </div>
+                )}
+                {ultimosExamesLab.insulina && (
+                  <div className="border-l-2 border-emerald-500 pl-2">
+                    <span className="text-gray-500 block">Insulina:</span>
+                    <span className="font-bold text-gray-800">{ultimosExamesLab.insulina} µUI/mL</span>
+                  </div>
+                )}
+                {ultimosExamesLab.colesterol_total && (
+                  <div className="border-l-2 border-emerald-500 pl-2">
+                    <span className="text-gray-500 block">Colesterol Total:</span>
+                    <span className="font-bold text-gray-800">{ultimosExamesLab.colesterol_total} mg/dL</span>
+                  </div>
+                )}
+                {ultimosExamesLab.hdl && (
+                  <div className="border-l-2 border-emerald-500 pl-2">
+                    <span className="text-gray-500 block">HDL:</span>
+                    <span className="font-bold text-gray-800">{ultimosExamesLab.hdl} mg/dL</span>
+                  </div>
+                )}
+                {ultimosExamesLab.ldl && (
+                  <div className="border-l-2 border-emerald-500 pl-2">
+                    <span className="text-gray-500 block">LDL:</span>
+                    <span className="font-bold text-gray-800">{ultimosExamesLab.ldl} mg/dL</span>
+                  </div>
+                )}
+                {ultimosExamesLab.triglicerideos && (
+                  <div className="border-l-2 border-emerald-500 pl-2">
+                    <span className="text-gray-500 block">Triglicerídeos:</span>
+                    <span className="font-bold text-gray-800">{ultimosExamesLab.triglicerideos} mg/dL</span>
+                  </div>
+                )}
+                {ultimosExamesLab.tsh && (
+                  <div className="border-l-2 border-emerald-500 pl-2">
+                    <span className="text-gray-500 block">TSH:</span>
+                    <span className="font-bold text-gray-800">{ultimosExamesLab.tsh} µUI/mL</span>
+                  </div>
+                )}
+                {ultimosExamesLab.hemoglobina && (
+                  <div className="border-l-2 border-emerald-500 pl-2">
+                    <span className="text-gray-500 block">Hemoglobina:</span>
+                    <span className="font-bold text-gray-800">{ultimosExamesLab.hemoglobina} g/dL</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Últimas Anotações Clínicas */}
+          {anotacoes.length > 0 && (
+            <div className="border border-gray-200 rounded-xl p-4 space-y-2">
+              <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">5. Registro de Consultas e Orientações Clínicas</h3>
+              <div className="space-y-3">
+                {anotacoes.slice(0, 3).map((nota) => (
+                  <div key={nota.id} className="text-xs border-b border-gray-100 pb-2 last:border-0 last:pb-0">
+                    <span className="font-bold text-gray-500 block mb-0.5">
+                      Consulta em {new Date(nota.data_criacao).toLocaleDateString('pt-BR')}:
+                    </span>
+                    <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">{nota.texto}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Campo de Assinatura */}
+          <div className="pt-12 mt-8 border-t border-gray-200 flex justify-between items-end text-xs">
+            <div className="text-gray-400">
+              <p>NutriOne • Sistema de Gestão Nutricional Inteligente</p>
+              <p>Documento de uso profissional e acompanhamento individualizado.</p>
+            </div>
+            <div className="text-center w-64 border-t border-gray-800 pt-2">
+              <p className="font-bold text-gray-800">{nutricionista?.nome_completo || "Dr(a). Nutricionista"}</p>
+              <p className="text-gray-500">Nutricionista Clínico(a)</p>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* Botão Flutuante do Copiloto IA */}

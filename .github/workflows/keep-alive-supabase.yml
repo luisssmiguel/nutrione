@@ -1,0 +1,29 @@
+name: Supabase Keep-Alive Bot
+
+on:
+  schedule:
+    # Executa a cada 3 dias às 08:00 UTC (garante que o plano gratuito NUNCA congele por 7 dias de inatividade)
+    - cron: '0 8 */3 * *'
+  workflow_dispatch: # Permite disparar manualmente pelo botão "Run workflow" no GitHub Actions
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acordar Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || vars.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          echo "Enviando ping de atividade para o Supabase..."
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "Aviso: Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY em Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" "$SUPABASE_URL/rest/v1/perfis?select=id&limit=1")
+          echo "Código HTTP recebido: $HTTP_CODE"
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+            echo "✅ Banco Supabase renovado e ativo!"
+          else
+            echo "⚠️ Consulta retornou código: $HTTP_CODE"
+          fi
