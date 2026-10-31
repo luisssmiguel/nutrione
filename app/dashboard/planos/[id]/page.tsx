@@ -14,6 +14,10 @@ export default function MontagemPlanoPage() {
   const [refeicoes, setRefeicoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // NOVO: Dados do Nutricionista e Anamnese para o PDF oficial
+  const [nutricionista, setNutricionista] = useState<any>(null);
+  const [ultimaAnamnese, setUltimaAnamnese] = useState<any>(null);
+
   const [nomeRefeicao, setNomeRefeicao] = useState("");
   const [horario, setHorario] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -52,34 +56,50 @@ export default function MontagemPlanoPage() {
   const [itensComprados, setItensComprados] = useState<{ [key: string]: boolean }>({});
   const [copiadoCompras, setCopiadoCompras] = useState(false);
 
+  // ==========================================
+  // REF DO DOCUMENTO OFICIAL DE IMPRESSÃO PDF
+  // ==========================================
   const componentePDFRef = useRef<HTMLDivElement>(null);
 
   const handleExportarPDF = useReactToPrint({
     contentRef: componentePDFRef,
-    documentTitle: `Plano_Alimentar`,
+    documentTitle: `Plano_Alimentar_${plano?.pacientes?.perfis?.nome_completo || "Paciente"}`,
   });
 
   const carregarDados = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Busca dados do Nutricionista logado para timbre e assinatura
+    if (user) {
+      const { data: dataNutri } = await supabase
+        .from("perfis")
+        .select("nome_completo, email")
+        .eq("id", user.id)
+        .single();
+      if (dataNutri) setNutricionista(dataNutri);
+    }
+
     const { data: dataPlano } = await supabase
       .from("planos_alimentares")
-      .select(`id, paciente_id, titulo, ativo, pacientes ( id, peso_kg, altura_cm, data_nascimento, perfis (nome_completo) )`)
+      .select(`id, paciente_id, titulo, ativo, pacientes ( id, peso_kg, altura_cm, data_nascimento, perfis (nome_completo, email) )`)
       .eq("id", id)
       .single();
 
     if (dataPlano) {
       setPlano(dataPlano);
 
-      // Busca anamnese mais recente para auto-preencher dados da IA
+      // Busca anamnese mais recente para auto-preencher dados da IA e o cabeçalho do PDF
       if (dataPlano.paciente_id) {
         const { data: dataAnamnese } = await supabase
           .from("anamneses")
-          .select("objetivo_principal, alergias_intolerancias, aversoes_preferencias")
+          .select("objetivo_principal, alergias_intolerancias, aversoes_preferencias, consumo_agua, rotina_sono")
           .eq("paciente_id", dataPlano.paciente_id)
           .order("data_anamnese", { ascending: false })
           .limit(1)
           .maybeSingle();
 
         if (dataAnamnese) {
+          setUltimaAnamnese(dataAnamnese);
           if (dataAnamnese.objetivo_principal) setObjetivoIa(dataAnamnese.objetivo_principal);
           if (dataAnamnese.alergias_intolerancias) setAlergiasIa(dataAnamnese.alergias_intolerancias);
           if (dataAnamnese.aversoes_preferencias) setPreferenciasIa(dataAnamnese.aversoes_preferencias);
@@ -98,6 +118,24 @@ export default function MontagemPlanoPage() {
   };
 
   useEffect(() => { carregarDados(); }, [id]);
+
+  const calcularIdade = (dataNasc: string) => {
+    if (!dataNasc) return "--";
+    const hoje = new Date(); const nasc = new Date(dataNasc);
+    let idade = hoje.getFullYear() - nasc.getFullYear();
+    if (hoje.getMonth() - nasc.getMonth() < 0 || (hoje.getMonth() - nasc.getMonth() === 0 && hoje.getDate() < nasc.getDate())) idade--;
+    return idade;
+  };
+
+  const formatarData = (dataSql: string) => {
+    if (!dataSql) return "--";
+    const [ano, mes, dia] = dataSql.split("T")[0].split("-");
+    return `${dia}/${mes}/${ano}`;
+  };
+
+  const imc = plano?.pacientes?.peso_kg && plano?.pacientes?.altura_cm
+    ? (plano.pacientes.peso_kg / ((plano.pacientes.altura_cm / 100) * (plano.pacientes.altura_cm / 100))).toFixed(1)
+    : "--";
 
   // NOVO: Função para colocar os dados no formulário quando clicar em Editar
   const handleEditarClique = (ref: any) => {
@@ -323,7 +361,7 @@ export default function MontagemPlanoPage() {
     setTimeout(() => setCopiadoCompras(false), 2500);
   };
 
-  // ATUALIZADO: Agora ele sabe se deve Criar (Insert) ou Atualizar (Update)
+  // Criação ou Edição de Refeição
   const handleSalvarRefeicao = async (e: React.FormEvent) => {
     e.preventDefault();
     setSalvando(true);
@@ -382,7 +420,7 @@ export default function MontagemPlanoPage() {
       {/* Cabeçalho e Botões de Ação */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push('/dashboard/planos')} className="text-gray-500 hover:text-emerald-700 bg-white p-2 rounded-lg shadow-sm border border-gray-200 transition-colors">
+          <button onClick={() => router.push('/dashboard/planos')} className="text-gray-500 hover:text-emerald-700 bg-white p-2 rounded-lg shadow-sm border border-gray-200 transition-colors cursor-pointer">
             ← Voltar
           </button>
           <div>
@@ -422,8 +460,9 @@ export default function MontagemPlanoPage() {
           <button 
             onClick={handleExportarPDF}
             className="bg-gray-800 hover:bg-black text-white px-4 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
+            title="Exportar Cardápio Oficial em PDF"
           >
-            <span>📄</span> PDF
+            <span>📄</span> Exportar PDF
           </button>
         </div>
       </div>
@@ -452,12 +491,12 @@ export default function MontagemPlanoPage() {
               </div>
               
               <div className="flex flex-col gap-2 mt-4">
-                <button type="submit" disabled={salvando} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition duration-300 shadow-sm disabled:opacity-50">
+                <button type="submit" disabled={salvando} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition duration-300 shadow-sm disabled:opacity-50 cursor-pointer">
                   {salvando ? "Salvando..." : refeicaoEmEdicao ? "Atualizar Refeição" : "+ Incluir no Plano"}
                 </button>
 
                 {refeicaoEmEdicao && (
-                  <button type="button" onClick={handleCancelarEdicao} className="w-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 font-semibold py-3 rounded-xl transition duration-300">
+                  <button type="button" onClick={handleCancelarEdicao} className="w-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 font-semibold py-3 rounded-xl transition duration-300 cursor-pointer">
                     Cancelar Edição
                   </button>
                 )}
@@ -466,19 +505,12 @@ export default function MontagemPlanoPage() {
           </div>
         </div>
 
-        {/* Coluna da Direita: Cardápio */}
+        {/* Coluna da Direita: Cardápio Interativo na Tela */}
         <div className="lg:col-span-2">
           
-          <div ref={componentePDFRef} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 min-h-[500px]">
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 min-h-[500px]">
             
-            {/* CABEÇALHO DO PDF (Invisível na tela) */}
-            <div className="hidden print:block mb-10 text-center border-b-2 border-emerald-100 pb-6">
-              <h1 className="text-3xl font-extrabold text-emerald-800">NutriOne</h1>
-              <h2 className="text-xl font-bold text-gray-800 mt-4">{plano.titulo}</h2>
-              <p className="text-gray-600 mt-1">Paciente: <span className="font-semibold">{plano.pacientes?.perfis?.nome_completo}</span></p>
-            </div>
-
-            <div className="flex justify-between items-center mb-6 print:hidden">
+            <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-gray-800">Cardápio do Paciente</h3>
               <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full font-semibold border border-emerald-200">
                 {refeicoes.length} {refeicoes.length === 1 ? "refeição cadastrada" : "refeições cadastradas"}
@@ -487,7 +519,7 @@ export default function MontagemPlanoPage() {
             
             <div className="space-y-4">
               {refeicoes.length === 0 ? (
-                <div className="text-center py-12 px-6 text-gray-500 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 print:hidden space-y-3">
+                <div className="text-center py-12 px-6 text-gray-500 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 space-y-3">
                   <span className="text-4xl block">🥗</span>
                   <p className="font-semibold text-gray-700 text-base">Nenhuma refeição cadastrada neste plano ainda.</p>
                   <p className="text-xs text-gray-400 max-w-md mx-auto">
@@ -495,27 +527,27 @@ export default function MontagemPlanoPage() {
                   </p>
                   <button
                     onClick={() => setModalIaCardapioAberto(true)}
-                    className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all inline-flex items-center gap-2"
+                    className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
                   >
                     <span>✨</span> Gerar com Inteligência Artificial
                   </button>
                 </div>
               ) : (
                 refeicoes.map((ref) => (
-                  <div key={ref.id} className="p-6 bg-white rounded-xl border-2 border-emerald-50 shadow-sm relative group overflow-hidden print:border-gray-200 print:shadow-none print:break-inside-avoid">
+                  <div key={ref.id} className="p-6 bg-white rounded-xl border-2 border-emerald-50 shadow-sm relative group overflow-hidden">
                     
-                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500 print:bg-gray-800"></div>
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500"></div>
                     
                     <div className="flex justify-between items-start mb-3 pl-2">
                       <div className="flex items-center gap-3">
-                        <span className="bg-emerald-100 text-emerald-800 print:bg-gray-200 print:text-black font-bold px-3 py-1 rounded-lg text-sm">
+                        <span className="bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-lg text-sm">
                           {ref.horario}
                         </span>
                         <h4 className="font-bold text-gray-800 text-lg">{ref.nome}</h4>
                       </div>
                       
-                      {/* BOTÕES DE AÇÃO: Aparecem no Hover e somem na impressão */}
-                      <div className="flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                      {/* BOTÕES DE AÇÃO: Aparecem no Hover */}
+                      <div className="flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
                           onClick={() => handleEditarClique(ref)}
                           className="text-amber-500 hover:text-amber-700 text-sm font-semibold cursor-pointer"
@@ -540,14 +572,150 @@ export default function MontagemPlanoPage() {
               )}
             </div>
 
-            {/* RODAPÉ DO PDF */}
-            <div className="hidden print:block mt-12 text-center text-sm text-gray-500 pt-6 border-t border-gray-100">
-              <p>Plano alimentar gerado pelo sistema NutriOne.</p>
-            </div>
-
           </div>
         </div>
 
+      </div>
+
+      {/* ========================================================
+          DOCUMENTO TIMBRADO DE IMPRESSÃO (PLANO ALIMENTAR EM PDF)
+          Mesmo design, grafia e padrão oficial do Prontuário Médico
+      ======================================================== */}
+      <div className="hidden">
+        <div ref={componentePDFRef} className="p-10 bg-white text-gray-800 space-y-6 font-sans">
+          
+          {/* Cabeçalho Oficial do Plano */}
+          <div className="flex justify-between items-center border-b-2 border-emerald-600 pb-4">
+            <div>
+              <h1 className="text-3xl font-extrabold text-emerald-800 tracking-tight">NutriOne</h1>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">Clínica & Consultoria Nutricional Integrada</p>
+            </div>
+            <div className="text-right">
+              <h2 className="text-base font-bold text-gray-800">Prescrição Dietética & Plano Alimentar</h2>
+              <p className="text-xs text-gray-500">
+                Emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+              {nutricionista?.nome_completo && (
+                <p className="text-xs font-semibold text-emerald-700 mt-0.5">Dr(a). {nutricionista.nome_completo}</p>
+              )}
+            </div>
+          </div>
+
+          {/* 1. Identificação do Paciente */}
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2">1. Identificação do Paciente</h3>
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-gray-500 block">Nome Completo:</span>
+                <span className="font-bold text-gray-800">{plano?.pacientes?.perfis?.nome_completo || "Paciente"}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">Idade / Nascimento:</span>
+                <span className="font-bold text-gray-800">
+                  {plano?.pacientes?.data_nascimento ? `${calcularIdade(plano.pacientes.data_nascimento)} anos (${formatarData(plano.pacientes.data_nascimento)})` : "--"}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">E-mail:</span>
+                <span className="font-bold text-gray-800">{plano?.pacientes?.perfis?.email || "--"}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">Peso Atual:</span>
+                <span className="font-bold text-gray-800">{plano?.pacientes?.peso_kg ? `${plano.pacientes.peso_kg} kg` : "--"}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">Altura:</span>
+                <span className="font-bold text-gray-800">{plano?.pacientes?.altura_cm ? `${plano.pacientes.altura_cm} cm` : "--"}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block">IMC:</span>
+                <span className="font-bold text-gray-800">{imc !== "--" ? `${imc} kg/m²` : "--"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Diretrizes & Metas do Plano */}
+          <div className="border border-gray-200 rounded-xl p-4 space-y-2">
+            <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">2. Diretrizes & Metas Dietoterápicas</h3>
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-gray-500 block font-semibold">Título da Prescrição:</span>
+                <span className="text-gray-800 font-bold">{plano.titulo}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block font-semibold">Foco / Objetivo:</span>
+                <span className="text-emerald-800 font-bold">{ultimaAnamnese?.objetivo_principal || "Adequação Nutricional e Saúde"}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block font-semibold">Alergias / Intolerâncias:</span>
+                <span className="text-gray-800">{ultimaAnamnese?.alergias_intolerancias || "Nenhuma relatada"}</span>
+              </div>
+            </div>
+            {ultimaAnamnese?.consumo_agua && (
+              <div className="pt-2 border-t border-gray-100 text-xs">
+                <span className="text-gray-500 font-semibold">Meta de Hidratação Diária: </span>
+                <span className="text-emerald-800 font-bold">{ultimaAnamnese.consumo_agua}</span>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Prescrição das Refeições Diárias */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+              <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                3. Prescrição das Refeições Diárias ({refeicoes.length} {refeicoes.length === 1 ? "refeição" : "refeições"})
+              </h3>
+              <span className="text-[11px] text-gray-400">Siga as orientações e porções recomendadas</span>
+            </div>
+
+            {refeicoes.length === 0 ? (
+              <p className="text-xs text-gray-500 text-center py-6">Nenhuma refeição cadastrada neste plano.</p>
+            ) : (
+              refeicoes.map((ref, idx) => (
+                <div 
+                  key={ref.id || idx} 
+                  className="border-l-4 border-emerald-600 bg-gray-50/70 p-4 rounded-r-xl border-t border-r border-b border-gray-200 space-y-2 break-inside-avoid"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-lg text-xs">
+                      {ref.horario}
+                    </span>
+                    <h4 className="font-bold text-gray-800 text-sm sm:text-base">{ref.nome}</h4>
+                  </div>
+                  <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed pl-1">
+                    {ref.descricao}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* 4. Orientações Gerais de Hábitos Saudáveis */}
+          <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 text-xs text-emerald-950 space-y-1.5 break-inside-avoid">
+            <h4 className="font-bold text-emerald-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+              <span>💡</span> Recomendações Gerais do Nutricionista
+            </h4>
+            <ul className="list-disc list-inside space-y-1 text-gray-700 leading-relaxed">
+              <li>Mastigue devagar e evite distrações (celular, TV) durante as refeições principais.</li>
+              <li>Mantenha a ingestão hídrica constante entre as refeições, evitando grandes volumes de líquido junto com a comida.</li>
+              <li>Priorize temperos naturais (alho, cebola, cúrcuma, azeite extra virgem, ervas frescas) e evite ultraprocessados.</li>
+              <li>Dúvidas sobre substituições de alimentos ou horários devem ser consultadas diretamente com o nutricionista.</li>
+            </ul>
+          </div>
+
+          {/* Campo de Assinatura */}
+          <div className="pt-10 mt-8 border-t border-gray-200 flex justify-between items-end text-xs break-inside-avoid">
+            <div className="text-gray-400">
+              <p>NutriOne • Sistema de Gestão Nutricional Inteligente</p>
+              <p>Prescrição dietoterápica personalizada e intransferível.</p>
+            </div>
+            <div className="text-center w-64 border-t border-gray-800 pt-2">
+              <p className="font-bold text-gray-800">{nutricionista?.nome_completo || "Dr(a). Nutricionista"}</p>
+              <p className="text-gray-500">Nutricionista Clínico(a)</p>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* ========================================================
