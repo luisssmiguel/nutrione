@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../lib/supabase/client";
 
@@ -12,11 +12,21 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true); // Controla se estamos no Login ou Cadastro
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [alertaInatividade, setAlertaInatividade] = useState(false);
 
   // Estados dos Campos
   const [nomeCompleto, setNomeCompleto] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("motivo") === "inatividade") {
+        setAlertaInatividade(true);
+      }
+    }
+  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +43,9 @@ export default function LoginPage() {
       if (error) {
         setErrorMsg("Email ou senha incorretos. Tente novamente.");
       } else {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("nutrione_ultima_atividade", Date.now().toString());
+        }
         router.push("/dashboard"); // Se deu certo, viaja para o painel!
       }
     } else {
@@ -62,7 +75,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen bg-white">
       
-      {/* Lado Esquerdo - Painel Institucional (Sume em telas pequenas de celular) */}
+      {/* Lado Esquerdo - Painel Institucional (Some em telas pequenas de celular) */}
       <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-emerald-800 to-emerald-600 items-center justify-center relative overflow-hidden">
         {/* Círculos decorativos de fundo */}
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-emerald-500 rounded-full mix-blend-multiply filter blur-3xl opacity-50"></div>
@@ -78,11 +91,11 @@ export default function LoginPage() {
         </div>
       </div>
 
-{/* Lado Direito - Formulário de Autenticação */}
-<div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 bg-gray-50 min-h-screen lg:min-h-0">
-  <div className="w-full max-w-md bg-white px-5 py-7 sm:px-10 sm:pb-10 sm:pt-4 rounded-3xl shadow-xl border border-gray-100">
+      {/* Lado Direito - Formulário de Autenticação */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 bg-gray-50 min-h-screen lg:min-h-0">
+        <div className="w-full max-w-md bg-white px-5 py-7 sm:px-10 sm:pb-10 sm:pt-4 rounded-3xl shadow-xl border border-gray-100">
           
-{/* Logo Centralizada */}
+          {/* Logo Centralizada */}
           <div className="flex justify-center mb-0">
             <img src="/imagem-V1.png" alt="NutriOne" className="w-48 sm:w-64 h-auto object-contain" />
           </div>
@@ -96,6 +109,27 @@ export default function LoginPage() {
               {isLogin ? "Insira suas credenciais para acessar seu consultório." : "Comece a gerenciar seus pacientes hoje mesmo."}
             </p>
           </div>
+
+          {/* Alerta de Desconexão por Inatividade */}
+          {alertaInatividade && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl text-xs sm:text-sm font-medium mb-6 flex items-start gap-3 shadow-xs animate-in fade-in">
+              <span className="text-xl shrink-0">🔒</span>
+              <div className="flex-1">
+                <p className="font-bold text-amber-950">Sessão encerrada por inatividade</p>
+                <p className="text-amber-800 text-xs mt-1 leading-relaxed">
+                  Para proteger o sigilo e segurança dos prontuários médicos, seu acesso foi desconectado automaticamente após 1 hora sem uso. Faça login novamente para continuar.
+                </p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setAlertaInatividade(false)} 
+                className="text-amber-500 hover:text-amber-800 font-bold text-sm px-1 cursor-pointer"
+                title="Fechar alerta"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Exibição de Erros */}
           {errorMsg && (
@@ -149,7 +183,7 @@ export default function LoginPage() {
             {/* Botão Principal */}
             <button 
               type="submit" disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition duration-300 shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:shadow-none mt-2"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition duration-300 shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:shadow-none mt-2 cursor-pointer"
             >
               {loading ? "Processando..." : isLogin ? "Entrar no Consultório" : "Concluir Cadastro"}
             </button>
@@ -164,7 +198,7 @@ export default function LoginPage() {
                   setIsLogin(!isLogin);
                   setErrorMsg(""); // Limpa os erros ao trocar de tela
                 }}
-                className="ml-2 font-bold text-emerald-600 hover:text-emerald-800 transition-colors focus:outline-none"
+                className="ml-2 font-bold text-emerald-600 hover:text-emerald-800 transition-colors focus:outline-none cursor-pointer"
               >
                 {isLogin ? "Cadastre-se grátis" : "Faça login"}
               </button>

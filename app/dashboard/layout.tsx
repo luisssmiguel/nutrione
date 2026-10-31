@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation"; 
 import { createClient } from "../../lib/supabase/client";
+import AutoLogoutInatividade from "../../components/AutoLogoutInatividade";
 
 export default function DashboardLayout({
   children,
@@ -28,6 +29,9 @@ export default function DashboardLayout({
   }, []);
 
   const handleLogout = async () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("nutrione_ultima_atividade");
+    }
     await supabase.auth.signOut();
     router.push("/");
   };
@@ -43,6 +47,8 @@ export default function DashboardLayout({
   return (
     // Mudamos para flex-col no mobile e flex-row no desktop
     <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gray-50">
+      {/* Sistema Inteligente de Desconexão Automática após 1h de Inatividade */}
+      <AutoLogoutInatividade />
       
       {/* =======================================
           CABEÇALHO MOBILE (Só aparece no celular)
